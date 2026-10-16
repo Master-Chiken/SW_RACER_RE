@@ -1,0 +1,77 @@
+# Contributing to SW_RACER_RE
+
+Thank you for helping improve the Star Wars Episode I: Racer decompilation project.
+
+## Project scope
+
+The goal is to document and re-implement selected functions of the original game so the modding community can understand and extend it. The project does **not** aim for matching compilation or a complete decompilation of every original function.
+
+Useful contributions include:
+- analysing and documenting a specific function or global variable;
+- checking function addresses, prototypes, calling conventions, or symbol names;
+- implementing a focused function whose behaviour is sufficiently understood;
+- reproducing and fixing a bug in the hook or supporting tools;
+- improving build instructions, scripts, tests, and developer documentation;
+- testing a change on a supported setup and reporting reproducible results.
+
+You do not need to be an expert in every part of the project. A small, well-documented contribution is valuable.
+
+## Before starting
+
+1. Read the project [README](README.md) and `NOTES.md`.
+2. Search the source tree before opening a new task, to avoid duplicating existing work.
+3. For a substantial reverse-engineering task, open an issue or discuss it in the [official Discord](https://discord.com/servers/star-wars-episode-i-racer-441839750555369474) before spending time on it.
+4. Keep each issue and pull request focused on one objective.
+
+The README identifies `data_symbols.syms` as the source of truth for global variables. Generated function hooks are written to `src/generated/hook_generated.c` by `scripts/GenerateHooks.py` from `hook_generated_c.j2`. Do not make a manual-only edit to a generated file; update the relevant source/template and regenerate the output when appropriate.
+
+## Development setup
+
+The tools currently documented by the project are:
+- Git;
+- Python 3 for project scripts;
+- Ghidra 10.2.2 for the documented decompilation workflow;
+- a Windows C compiler for the relevant game/decompilation workflow;
+- for building the `dinput.dll` hook: CMake and an LLVM-MinGW toolchain. Ninja is needed when using the provided presets.
+
+For the documented Clang release build, configure and build from the repository root:
+
+```sh
+cmake --preset clang-release -DGAME_DIR="<path to your legally obtained game directory>"
+cmake --build --preset clang-release
+```
+
+See the README for alternatives, sanitizer builds, and static-analysis instructions. If you cannot build the project locally, say so in your issue or pull request and describe what you were able to verify.
+
+## Reverse-engineering notes
+
+When proposing or implementing a function:
+- include its address and known name, if available;
+- record the game version/build used for observations;
+- describe the evidence behind the proposed behaviour (for example, relevant disassembly, callers, arguments, or observed runtime behaviour);
+- distinguish confirmed behaviour from hypotheses;
+- document unknowns rather than silently guessing;
+- make sure the function prototype and calling convention match the evidence.
+
+A short analysis with clear evidence can be submitted even if it does not yet include an implementation.
+
+## Pull request checklist
+
+Before submitting:
+- [ ] Explain the problem and why the change is useful.
+- [ ] Keep the change limited to one main purpose.
+- [ ] State which commands or manual tests you ran and their results.
+- [ ] Include a function address, reproduction steps, or other evidence where relevant.
+- [ ] Update documentation when workflow or behaviour changes.
+- [ ] Regenerate generated files when their source/template changes.
+- [ ] Remove temporary logs, local paths, and unrelated formatting changes.
+
+Please do not claim that a change has been tested if it has not been tested.
+
+## Copyright and large files
+
+Do not commit the original commercial game executable, proprietary game assets, unpacked game data, or other material you are not authorised to redistribute. Describe the version used for testing and keep any required local paths out of commits. Use the project to share your own code, analysis, tests, and documentation.
+
+## Finding a first task
+
+Look for a small reproducible bug, a missing explanation, a script that needs tests, or a single function/symbol that can be investigated independently. If you are unsure whether a task is suitable, open an issue using one of the repository's templates. Maintainers and contributors can then agree on its scope before implementation.
