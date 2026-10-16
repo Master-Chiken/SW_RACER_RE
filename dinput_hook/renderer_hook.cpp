@@ -2256,7 +2256,10 @@ extern "C" int Window_PlayCinematic_delta(char **znmFile) {
         // Scale the Smush cinematic volume by the mod's master*cutscene knob (see comment above).
         const int saved_intro = swrMain_introMoviesPending;
         const short saved_music_vol = sound_music_volume;
-        float effective = imgui_state.master_volume * imgui_state.cutscene_volume;
+        // Smush reads sound_music_volume directly; preserve the game's -s/no-sound switch instead of re-enabling cinematic audio.
+        float effective = Main_sound != 0
+                              ? imgui_state.master_volume * imgui_state.cutscene_volume
+                              : 0.0f;
         effective = effective < 0.0f ? 0.0f : (effective > 1.0f ? 1.0f : effective);
         swrMain_introMoviesPending = 0;
         sound_music_volume = (short) (effective * 255.0f);
