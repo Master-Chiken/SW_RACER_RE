@@ -1,0 +1,34 @@
+name: Raw asset boundary tests
+
+on:
+  push:
+    paths:
+      - ".github/workflows/raw-asset-boundaries.yml"
+      - "tests/test_raw_model_validator.py"
+      - "scripts/extract_raw_asset.py"
+      - "scripts/extract_raw_model.py"
+      - "scripts/validate_raw_model.py"
+      - "scripts/convert_track_pack.py"
+      - "scripts/gc_content_store.py"
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/raw-asset-boundaries.yml"
+      - "tests/test_raw_model_validator.py"
+      - "scripts/extract_raw_asset.py"
+      - "scripts/extract_raw_model.py"
+      - "scripts/validate_raw_model.py"
+      - "scripts/convert_track_pack.py"
+      - "scripts/gc_content_store.py"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run synthetic parser and asset round-trip tests
+        run: python tests/test_raw_model_validator.py
