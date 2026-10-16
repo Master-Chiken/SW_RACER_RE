@@ -8,7 +8,7 @@ Pods also need a specific structure: Three nodes named `cockpit`, `engineR` and 
 This uses dll injection from the `dinput.dll` custom dll, which will replace some of the original game functions with our own.
 If you want to uninstall this mod, remove `dinput.dll` and the `assets/` directory.
 
-This mod also output some debug log in the `hook_log.txt` file. If your game crashes unexpectedly, the informations contained in it can often be used to understand what is happenning.
+This mod also outputs debug logs to `hook.log`. If your game crashes unexpectedly, the information in this file can often help diagnose what happened.
 
 # Building
 Instructions to compile on windows
@@ -19,9 +19,9 @@ MingW-w64 from winlibs, i686-w64-mingw32-gcc 14.2.0, ld.exe, cmake and ninja. Se
 https://winlibs.com/
 UCRT runtime
 GCC 14.2.0 (with POSIX threads) + LLVM/Clang/LLD/LLDB 19.1.1 + MinGW-w64 12.0.0 UCRT - release 2
-Win32: 7-Zip archive* | Zip archive   -   without LLVM/Clang/LLD/LLDB: 7-Zip archive* | Zip archive
+Win32: 7-Zip archive* | Zip archive   -   without LLVM/Clang/LLDB: 7-Zip archive* | Zip archive
 
-Add `C:\msys64\mingw32\bin` to PATH
+Add `C:\\msys64\\mingw32\\bin` to PATH
 
 Install python 3 separately (from the windows store for example)
 
@@ -37,14 +37,14 @@ For example:
 ```
 mkdir build
 cd build
-cmake ../.. -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=i686-w64-mingw32-g++ -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=C:\Users\Tim\AppData\Local\Programs\Python\Python312\python.exe -DGAME_DIR="C:\Users\Tim\Desktop\STAR WARS RACER DIR\STAR WARS Racer_OGL"
+cmake ../.. -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=i686-w64-mingw32-g++ -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=C:\\Users\\Tim\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -DGAME_DIR="C:\\Users\\Tim\\Desktop\\STAR WARS RACER DIR\\STAR WARS Racer_OGL"
 ninja
 ```
 or for debug build:
 ```
 mkdir debug
 cd debug
-cmake ../.. -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=i686-w64-mingw32-g++ -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=C:\Users\Tim\AppData\Local\Programs\Python\Python312\python.exe -DGAME_DIR="C:\Users\Tim\Desktop\STAR WARS RACER DIR\STAR WARS Racer_OGL"
+cmake ../.. -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_CXX_COMPILER=i686-w64-mingw32-g++ -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=C:\\Users\\Tim\\AppData\\Local\\Programs\\Python\\Python312\\python.exe -DGAME_DIR="C:\\Users\\Tim\\Desktop\\STAR WARS RACER DIR\\STAR WARS Racer_OGL"
 ninja
 ```
 which activate a separate scene to test gltf rendering, as well as having debug symbols
