@@ -67,5 +67,16 @@ int main() {
     check(!source_texture_split_valid(16, 15, 40), "texture palette before pixels is rejected");
     check(!source_texture_split_valid(16, 41, 40), "texture palette past entry end is rejected");
 
+    check(source_path_matches("data/lev01/out_modelblock.bin",
+                              "data/lev01/out_modelblock.bin"),
+          "virtual view accepts the exact source archive path");
+    check(!source_path_matches("data/lev01/out_modelblock.bin",
+                               "assets/custom_tracks/track/out_modelblock.bin"),
+          "virtual view rejects a different archive path");
+    check(!source_path_matches("data/lev01/out_modelblock.bin", nullptr),
+          "virtual view rejects a missing current archive path");
+    check(!source_path_matches(nullptr, "data/lev01/out_modelblock.bin"),
+          "virtual view rejects a missing stored source path");
+
     return failures == 0 ? 0 : 1;
 }
