@@ -342,13 +342,18 @@ namespace {
             *content_hash_out = manifest_content_hash;
 
         std::map<std::string, uint64_t> unique;
-        const auto add = [&](simdjson::dom::element asset) -> bool {
-            std::string_view sha_view;
-            int64_t size = 0;
-            if (asset["sha256"].get(sha_view) != simdjson::SUCCESS ||
+        const auto add = [&](simdjson::dom::element asset, const char *expected_format,
+                             const char *index_key) -> bool {
+            std::string_view format, sha_view;
+            int64_t size = 0, index = -1;
+            if (asset["format"].get(format) != simdjson::SUCCESS || format != expected_format ||
+                asset["sha256"].get(sha_view) != simdjson::SUCCESS ||
                 asset["size"].get(size) != simdjson::SUCCESS ||
+                asset[index_key].get(index) != simdjson::SUCCESS ||
+                index < 0 || static_cast<uint64_t>(index) >= 1'000'000ULL ||
                 size <= 0 || static_cast<uint64_t>(size) > MAX_RESPONSE_BYTES) {
-                *error = "a manifest asset has an invalid hash or size";
+                *error = std::string("a manifest asset has an invalid format, index or size; expected ") +
+                         expected_format;
                 return false;
             }
             const std::string sha(sha_view);
@@ -365,7 +370,7 @@ namespace {
         };
 
         simdjson::dom::element model;
-        if (root["model"].get(model) != simdjson::SUCCESS || !add(model)) {
+        if (root["model"].get(model) != simdjson::SUCCESS || !add(model, "RAWM", "block_id")) {
             if (error->empty())
                 *error = "the track manifest has no usable model asset";
             return false;
@@ -374,7 +379,7 @@ namespace {
         simdjson::dom::element spline;
         const simdjson::error_code spline_error = root["spline"].get(spline);
         if (spline_error == simdjson::SUCCESS) {
-            if (!add(spline))
+            if (!add(spline, "RAWS", "block_id"))
                 return false;
         } else if (spline_error != simdjson::NO_SUCH_FIELD) {
             *error = "the track manifest has a malformed spline field";
@@ -384,7 +389,7 @@ namespace {
         simdjson::dom::element preview;
         const simdjson::error_code preview_error = root["preview_model"].get(preview);
         if (preview_error == simdjson::SUCCESS) {
-            if (!add(preview))
+            if (!add(preview, "RAWM", "block_id"))
                 return false;
         } else if (preview_error != simdjson::NO_SUCH_FIELD) {
             *error = "the track manifest has a malformed preview_model field";
@@ -394,12 +399,47 @@ namespace {
         simdjson::dom::array textures;
         const simdjson::error_code textures_error = root["textures"].get(textures);
         if (textures_error == simdjson::SUCCESS) {
+            std::set<uint32_t> texture_indices;
             for (simdjson::dom::element texture: textures) {
-                if (!add(texture))
+                int64_t texture_index = -1;
+                if (texture["block_index"].get(texture_index) != simdjson::SUCCESS ||
+                    texture_index < 0 || static_cast<uint64_t>(texture_index) >= 1'000'000ULL ||
+                    !texture_indices.insert(static_cast<uint32_t>(texture_index)).second) {
+                    *error = "the manifest has an invalid or duplicate texture block index";
+                    return false;
+                }
+                if (!add(texture, "RAWT", "block_index"))
                     return false;
             }
         } else if (textures_error != simdjson::NO_SUCH_FIELD) {
             *error = "the track manifest has a malformed textures field";
+            return false;
+        }
+
+        // Reject malformed placements before downloading any of the referenced blobs.
+        simdjson::dom::element placement;
+        const simdjson::error_code placement_error = root["placement"].get(placement);
+        if (placement_error == simdjson::SUCCESS) {
+            const auto get_placement_int = [&](const char *key, int64_t fallback, int64_t *value) {
+                const simdjson::error_code field_error = placement[key].get(*value);
+                if (field_error == simdjson::NO_SUCH_FIELD) {
+                    *value = fallback;
+                    return true;
+                }
+                return field_error == simdjson::SUCCESS;
+            };
+            int64_t planet = 0, planet_track = 0, favorite = 0, stock_slot = -1;
+            if (!get_placement_int("planet", 0, &planet) ||
+                !get_placement_int("planet_track_number", 0, &planet_track) ||
+                !get_placement_int("favorite_pilot", 0, &favorite) ||
+                !get_placement_int("overrides_stock_slot", -1, &stock_slot) ||
+                planet < 0 || planet >= 8 || planet_track < 0 || planet_track > 255 ||
+                favorite < 0 || favorite > 255 || stock_slot < -1 || stock_slot >= 25) {
+                *error = "the manifest has a malformed or out-of-range placement";
+                return false;
+            }
+        } else if (placement_error != simdjson::NO_SUCH_FIELD) {
+            *error = "the manifest has a malformed placement field";
             return false;
         }
 
