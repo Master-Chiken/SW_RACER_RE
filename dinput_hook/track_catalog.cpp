@@ -8,6 +8,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -48,7 +49,10 @@ namespace {
         if (slug.empty() || slug.size() > 128 || slug == "." || slug == "..")
             return false;
         for (unsigned char ch: slug) {
-            if (!std::isalnum(ch) && ch != '.' && ch != '_' && ch != '-')
+            const bool ascii_alnum = (ch >= 'a' && ch <= 'z') ||
+                                     (ch >= 'A' && ch <= 'Z') ||
+                                     (ch >= '0' && ch <= '9');
+            if (!ascii_alnum && ch != '.' && ch != '_' && ch != '-')
                 return false;
         }
         return true;
@@ -308,7 +312,8 @@ namespace {
     };
 
     bool wanted_assets(const std::string &manifest_json, std::vector<WantedAsset> *out,
-                       std::string *error, std::string *slug_out = nullptr) {
+                       std::string *error, std::string *slug_out = nullptr,
+                       std::string *content_hash_out = nullptr) {
         if (out == nullptr || error == nullptr)
             return false;
         out->clear();
@@ -337,6 +342,22 @@ namespace {
         }
         if (slug_out)
             *slug_out = manifest_slug;
+
+        std::string_view content_hash_view;
+        const simdjson::error_code content_hash_error = root["content_hash"].get(content_hash_view);
+        std::string manifest_content_hash;
+        if (content_hash_error == simdjson::SUCCESS) {
+            manifest_content_hash = std::string(content_hash_view);
+            if (!manifest_content_hash.empty() && !valid_sha256(manifest_content_hash)) {
+                *error = "the manifest content_hash is not a lowercase SHA-256 digest";
+                return false;
+            }
+        } else if (content_hash_error != simdjson::NO_SUCH_FIELD) {
+            *error = "the manifest content_hash field is malformed";
+            return false;
+        }
+        if (content_hash_out)
+            *content_hash_out = manifest_content_hash;
 
         std::map<std::string, uint64_t> unique;
         const auto add = [&](simdjson::dom::element asset) -> bool {
@@ -512,9 +533,11 @@ namespace {
             }
             track.manifest_json = simdjson::to_string(manifest);
             std::vector<WantedAsset> assets;
-            std::string manifest_slug, manifest_error;
-            if (!wanted_assets(track.manifest_json, &assets, &manifest_error, &manifest_slug) ||
-                manifest_slug != track.slug) {
+            std::string manifest_slug, manifest_content_hash, manifest_error;
+            if (!wanted_assets(track.manifest_json, &assets, &manifest_error, &manifest_slug,
+                               &manifest_content_hash) ||
+                manifest_slug != track.slug ||
+                (!track.content_hash.empty() && track.content_hash != manifest_content_hash)) {
                 if (hook_log) {
                     fprintf(hook_log, "[track_catalog] skipping '%s': manifest mismatch: %s\n",
                             track.slug.c_str(),
@@ -544,6 +567,8 @@ namespace {
                 continue;
             }
             track.download_bytes = total;
+            if (track.content_hash.empty())
+                track.content_hash = manifest_content_hash;
             track.installed = installed_matches(track);
             fetched.push_back(std::move(track));
         }
@@ -587,9 +612,11 @@ namespace {
         }
 
         std::vector<WantedAsset> assets;
-        std::string manifest_slug, error;
-        if (!wanted_assets(track.manifest_json, &assets, &error, &manifest_slug) ||
-            manifest_slug != slug) {
+        std::string manifest_slug, manifest_content_hash, error;
+        if (!wanted_assets(track.manifest_json, &assets, &error, &manifest_slug,
+                           &manifest_content_hash) ||
+            manifest_slug != slug ||
+            (!track.content_hash.empty() && track.content_hash != manifest_content_hash)) {
             set_status(CatalogState::Failed, "invalid track manifest: " + error);
             return;
         }
@@ -741,7 +768,8 @@ const std::string &track_catalog_Url() {
                                                "https://bottosjunkyard.com/api/v1/customtracks");
         while (!value.empty() && value.back() == '/')
             value.pop_back();
-        if (value.rfind("https://", 0) != 0 && value.rfind("http://", 0) != 0)
+        if (value.size() > 1024 || value.find_first_of("?#\\r\\n") != std::string::npos ||
+            (value.rfind("https://", 0) != 0 && value.rfind("http://", 0) != 0))
             return std::string("https://bottosjunkyard.com/api/v1/customtracks");
         return value;
     }();
