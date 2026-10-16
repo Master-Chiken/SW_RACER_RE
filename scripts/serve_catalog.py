@@ -39,6 +39,81 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
+def valid_slug(slug):
+    return (
+        isinstance(slug, str)
+        and 0 < len(slug) <= 128
+        and slug not in (".", "..")
+        and all(ch.isascii() and (ch.isalnum() or ch in "._-") for ch in slug)
+    )
+
+
+def checked_asset_size(asset, expected_format, index_key):
+    if not isinstance(asset, dict) or asset.get("format") != expected_format:
+        raise ValueError(f"asset is not a {expected_format} object")
+    digest = asset.get("sha256")
+    if (not isinstance(digest, str) or len(digest) != 64
+            or any(ch not in "0123456789abcdef" for ch in digest)):
+        raise ValueError("asset has an invalid SHA-256 digest")
+    size = asset.get("size")
+    if isinstance(size, bool) or not isinstance(size, int) or not (1 <= size <= 64 * 1024 * 1024):
+        raise ValueError("asset has an invalid declared size")
+    index = asset.get(index_key)
+    if isinstance(index, bool) or not isinstance(index, int) or not (0 <= index < 1_000_000):
+        raise ValueError(f"asset has an invalid {index_key}")
+    return digest, size
+
+
+def manifest_download_size(manifest):
+    if not isinstance(manifest, dict) or manifest.get("schema") != 1:
+        raise ValueError("manifest must be a schema 1 object")
+    if not valid_slug(manifest.get("slug")):
+        raise ValueError("manifest has an invalid slug")
+    if not isinstance(manifest.get("name", ""), str) or not isinstance(manifest.get("version", ""), str):
+        raise ValueError("manifest name/version must be strings")
+    author = manifest.get("author", {})
+    if author is not None and (not isinstance(author, dict)
+                               or not isinstance(author.get("name", ""), str)):
+        raise ValueError("manifest author must be an object with a string name")
+
+    content_hash = manifest.get("content_hash")
+    if (not isinstance(content_hash, str) or len(content_hash) != 64
+            or any(ch not in "0123456789abcdef" for ch in content_hash)):
+        raise ValueError("manifest has an invalid content_hash")
+
+    assets = [("model", "RAWM", "block_id", True)]
+    if "spline" in manifest:
+        assets.append(("spline", "RAWS", "block_id", True))
+    if "preview_model" in manifest:
+        assets.append(("preview_model", "RAWM", "block_id", True))
+    textures = manifest.get("textures", [])
+    if not isinstance(textures, list):
+        raise ValueError("manifest textures must be an array")
+    unique = {}
+    for key, expected_format, index_key, required in assets:
+        asset = manifest.get(key)
+        if asset is None and key == "spline" and required:
+            raise ValueError("manifest spline must be an object when present")
+        digest, size = checked_asset_size(asset, expected_format, index_key)
+        if digest in unique and unique[digest] != size:
+            raise ValueError("one hash is declared with conflicting sizes")
+        unique[digest] = size
+    texture_indices = set()
+    for asset in textures:
+        digest, size = checked_asset_size(asset, "RAWT", "block_index")
+        index = asset["block_index"]
+        if index in texture_indices:
+            raise ValueError("manifest repeats a texture block index")
+        texture_indices.add(index)
+        if digest in unique and unique[digest] != size:
+            raise ValueError("one hash is declared with conflicting sizes")
+        unique[digest] = size
+    total = sum(unique.values())
+    if total > 1024 * 1024 * 1024:
+        raise ValueError("manifest exceeds the 1 GiB download budget")
+    return total
+
+
 def build_index(root):
     tracks_dir = os.path.join(root, "tracks")
     if not os.path.isdir(tracks_dir):
@@ -56,20 +131,22 @@ def build_index(root):
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             print(f"skipping invalid manifest {path}: {exc}", file=sys.stderr)
             continue
-        if not isinstance(manifest, dict) or manifest.get("slug") != name:
-            print(f"skipping manifest with mismatched slug: {path}", file=sys.stderr)
+        if not valid_slug(name) or not isinstance(manifest, dict) or manifest.get("slug") != name:
+            print(f"skipping manifest with mismatched or invalid slug: {path}", file=sys.stderr)
             continue
 
-        assets = [manifest[key] for key in ("model", "spline", "preview_model")
-                  if isinstance(manifest.get(key), dict)]
-        assets += [t for t in manifest.get("textures", []) if isinstance(t, dict)]
+        try:
+            download_bytes = manifest_download_size(manifest)
+        except (TypeError, ValueError) as exc:
+            print(f"skipping invalid manifest {path}: {exc}", file=sys.stderr)
+            continue
         entries.append({
-            "slug": manifest.get("slug", name),
-            "name": manifest.get("name", name),
+            "slug": manifest["slug"],
+            "name": manifest.get("name") or name,
             "author": (manifest.get("author") or {}).get("name", ""),
             "version": manifest.get("version", ""),
-            "content_hash": manifest.get("content_hash", ""),
-            "download_bytes": sum(a.get("size", 0) for a in assets),
+            "content_hash": manifest["content_hash"],
+            "download_bytes": download_bytes,
             "manifest": manifest,
         })
     return {"schema": 1, "tracks": entries}
