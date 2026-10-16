@@ -149,36 +149,37 @@ def verify_block(kind: str, data: bytes) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    extract_parser = subparsers.add_parser("extract", help="extract one asset")
-    extract_parser.add_argument("kind", choices=sorted(MAGIC))
-    extract_parser.add_argument("block")
-    extract_parser.add_argument("asset_id", type=int)
-    extract_parser.add_argument("output")
-    verify_parser = subparsers.add_parser("verify", help="round-trip an entire block")
-    verify_parser.add_argument("kind", choices=sorted(MAGIC))
-    verify_parser.add_argument("block")
-    args = parser.parse_args()
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "verify":
+        kind, block_path = args[1], args[2]
+        if kind not in MAGIC:
+            print(f"error: unknown asset kind {kind!r}", file=sys.stderr)
+            return 1
+        try:
+            return verify_block(kind, Path(block_path).read_bytes())
+        except (OSError, ValueError, struct.error) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
+    if len(args) != 4 or args[0] not in MAGIC:
+        print(__doc__)
+        return 1
+
+    kind, block_path, asset_id_text, output_path = args
     try:
-        data = Path(args.block).read_bytes()
-        if args.command == "verify":
-            return verify_block(args.kind, data)
-        chunk = carve(args.kind, data, args.asset_id)
-        output = Path(args.output)
+        asset_id = int(asset_id_text, 10)
+        chunk = carve(kind, Path(block_path).read_bytes(), asset_id)
+        output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(chunk)
+        sections = payloads(kind, chunk)
     except (OSError, ValueError, struct.error) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    sections = payloads(args.kind, chunk)
-    print(f"wrote {args.output}: {MAGIC[args.kind].decode()}, "
+    print(f"wrote {output_path}: {MAGIC[kind].decode()}, "
           f"{' + '.join(str(len(p)) for p in sections)} bytes of payload")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
