@@ -1,65 +1,78 @@
 #!/usr/bin/env python3
-"""Extract one model from out_modelblock.bin into a raw-chunk replacement file.
+"""Extract a checked RAWM chunk for one model from out_modelblock.bin.
 
 Usage:
     python scripts/extract_raw_model.py <out_modelblock.bin> <model_id> <output.bin>
-
-Output format (consumed by dinput_hook/model_replacement.cpp):
-    [0]  b"RAWM"
-    [4]  uint32 mask_size   (little-endian)
-    [8]  uint32 model_size  (little-endian)
-    [12] mask payload   (big-endian, verbatim from the block)
-    [..] model payload  (big-endian, verbatim from the block)
-
-Round-trip sanity check: extract model N, drop it at
-./assets/replacement_models/N.bin, and the game should render identically.
 """
-import os
+from __future__ import annotations
 import struct
 import sys
+from pathlib import Path
 
 
-def be32(data, off):
-    return struct.unpack_from(">I", data, off)[0]
+def be32(data: bytes, offset: int) -> int:
+    return struct.unpack_from(">I", data, offset)[0]
 
 
-def main():
-    if len(sys.argv) != 4:
-        print(__doc__)
-        sys.exit(1)
+def extract_model_bytes(data: bytes, model_id: int) -> tuple[bytes, bytes]:
+    """Return (mask, model) bytes after validating the block table and ranges."""
+    if len(data) < 4:
+        raise ValueError("block is shorter than the model-count header")
+    count = be32(data, 0)
+    if model_id < 0 or model_id >= count:
+        raise ValueError(f"model id {model_id} out of range (block has {count} models)")
 
-    block_path = sys.argv[1]
-    model_id = int(sys.argv[2])
-    out_path = sys.argv[3]
+    # The table has a count, two offsets per model, and a final end offset.
+    table_end = 8 * count + 8
+    if table_end > len(data):
+        raise ValueError(f"truncated offset table: needs {table_end} bytes, file has {len(data)}")
 
-    with open(block_path, "rb") as f:
-        data = f.read()
-
-    num_models = be32(data, 0)
-    if not (0 <= model_id < num_models):
-        sys.exit(f"model id {model_id} out of range (block has {num_models} models)")
-
-    # TOC entry stride is 8 bytes; each model uses three consecutive offset words.
-    mask_offset = be32(data, 8 * model_id + 4)
-    model_offset = be32(data, 8 * model_id + 8)
-    next_offset = be32(data, 8 * model_id + 12)
+    offset = 8 * model_id + 4
+    mask_offset = be32(data, offset)
+    model_offset = be32(data, offset + 4)
+    next_offset = be32(data, offset + 8)
+    if not (table_end <= mask_offset <= model_offset <= next_offset <= len(data)):
+        raise ValueError(
+            "invalid model offsets: expected offset-table end <= mask <= model <= next <= file size "
+            f"(got {table_end}, {mask_offset}, {model_offset}, {next_offset}, {len(data)})"
+        )
+    if any(value % 4 for value in (mask_offset, model_offset, next_offset)):
+        raise ValueError("model offsets are not four-byte aligned")
 
     mask = data[mask_offset:model_offset]
     model = data[model_offset:next_offset]
+    if len(mask) % 4 or len(model) < 4 or len(model) % 4:
+        raise ValueError("selected model has malformed mask/model lengths")
+    return mask, model
 
-    out_dir = os.path.dirname(out_path)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
 
-    with open(out_path, "wb") as f:
-        f.write(b"RAWM")
-        f.write(struct.pack("<II", len(mask), len(model)))
-        f.write(mask)
-        f.write(model)
+def main() -> int:
+    if len(sys.argv) != 4:
+        print(__doc__)
+        return 1
+
+    block_path = Path(sys.argv[1])
+    out_path = Path(sys.argv[3])
+    try:
+        model_id = int(sys.argv[2], 10)
+        data = block_path.read_bytes()
+        mask, model = extract_model_bytes(data, model_id)
+    except (OSError, ValueError, struct.error) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        chunk = b"RAWM" + struct.pack("<II", len(mask), len(model)) + mask + model
+        out_path.write_bytes(chunk)
+    except OSError as exc:
+        print(f"error: cannot write {out_path}: {exc}", file=sys.stderr)
+        return 2
 
     kind = "compressed" if model[:4] == b"Comp" else "uncompressed"
     print(f"wrote {out_path}: mask={len(mask)} bytes, model={len(model)} bytes ({kind})")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
