@@ -388,44 +388,76 @@ bool track_manifest_ReadAsset(const TrackAsset &asset, std::vector<uint8_t> *out
 
 
 namespace {
-    // Chunks in the content store are the containers extract_raw_asset.py writes: a magic, one or
-    // two little-endian sizes, then the payload sections verbatim. The block view wants the payload
-    // and the offset its second section starts at.
-    bool to_override(const std::vector<uint8_t> &chunk, uint32_t index, VirtualOverride *out) {
-        if (chunk.size() < 8)
+    uint32_t read_le32(const uint8_t *bytes) {
+        return static_cast<uint32_t>(bytes[0]) |
+               (static_cast<uint32_t>(bytes[1]) << 8) |
+               (static_cast<uint32_t>(bytes[2]) << 16) |
+               (static_cast<uint32_t>(bytes[3]) << 24);
+    }
+
+    // Match each manifest role to its exact on-disk chunk format; do not accept a spline blob as
+    // a model simply because both have a plausible size header.
+    bool to_override(const std::vector<uint8_t> &chunk, swrLoader_TYPE type,
+                     uint32_t index, VirtualOverride *out) {
+        if (out == nullptr)
             return false;
 
-        const bool two_sections = memcmp(chunk.data(), "RAWM", 4) == 0 ||
-            memcmp(chunk.data(), "RAWT", 4) == 0;
-        if (!two_sections && memcmp(chunk.data(), "RAWS", 4) != 0)
-            return false;
-
-        uint32_t first = 0;
-        uint32_t second = 0;
-        memcpy(&first, chunk.data() + 4, sizeof(first));
-        const size_t header = two_sections ? 12 : 8;
-        if (two_sections) {
-            if (chunk.size() < header)
+        const char *expected_magic = nullptr;
+        size_t header = 0;
+        switch (type) {
+            case swrLoader_TYPE_MODEL_BLOCK:
+                expected_magic = "RAWM";
+                header = 12;
+                break;
+            case swrLoader_TYPE_SPLINE_BLOCK:
+                expected_magic = "RAWS";
+                header = 8;
+                break;
+            case swrLoader_TYPE_TEXTURE_BLOCK:
+                expected_magic = "RAWT";
+                header = 12;
+                break;
+            default:
                 return false;
-            memcpy(&second, chunk.data() + 8, sizeof(second));
         }
-        if (chunk.size() != header + first + second)
+        if (chunk.size() < header || memcmp(chunk.data(), expected_magic, 4) != 0)
+            return false;
+
+        const uint32_t first = read_le32(chunk.data() + 4);
+        const uint32_t second = header == 12 ? read_le32(chunk.data() + 8) : 0;
+        const uint64_t total = static_cast<uint64_t>(header) + first + second;
+        if (total != chunk.size() || total > MAX_TRACK_ASSET_BYTES || first == 0)
+            return false;
+
+        if (type == swrLoader_TYPE_MODEL_BLOCK &&
+            (first % 4 != 0 || second < 4 || second % 4 != 0))
+            return false;
+        if (type == swrLoader_TYPE_SPLINE_BLOCK && (first < 4 || first % 4 != 0))
+            return false;
+        if (type == swrLoader_TYPE_TEXTURE_BLOCK &&
+            (first % 4 != 0 || second % 4 != 0))
             return false;
 
         out->index = index;
         out->payload.assign(chunk.begin() + header, chunk.end());
         out->split = second != 0 ? first : 0;
-        return true;
+        return !out->payload.empty();
     }
 
-    bool collect(const TrackAsset &asset, std::vector<VirtualOverride> *overrides) {
+    bool collect(const TrackAsset &asset, swrLoader_TYPE type,
+                 std::vector<VirtualOverride> *overrides) {
         std::vector<uint8_t> chunk;
         VirtualOverride override_entry;
         if (!track_manifest_ReadAsset(asset, &chunk) ||
-            !to_override(chunk, asset.block_index, &override_entry)) {
-            fprintf(hook_log, "[track_manifest] asset %s is not a usable chunk\n",
-                    asset.sha256.c_str());
-            fflush(hook_log);
+            !to_override(chunk, type, asset.block_index, &override_entry)) {
+            if (hook_log) {
+                const char *kind =
+                    type == swrLoader_TYPE_MODEL_BLOCK ? "model" :
+                    type == swrLoader_TYPE_SPLINE_BLOCK ? "spline" : "texture";
+                fprintf(hook_log, "[track_manifest] asset %s is not a usable %s chunk\n",
+                        asset.sha256.c_str(), kind);
+                fflush(hook_log);
+            }
             return false;
         }
         overrides->push_back(std::move(override_entry));
@@ -438,12 +470,13 @@ bool track_manifest_InstallViews(const TrackManifest &manifest) {
     std::vector<VirtualOverride> splines;
     std::vector<VirtualOverride> textures;
 
-    if (!collect(manifest.model, &models))
+    if (!collect(manifest.model, swrLoader_TYPE_MODEL_BLOCK, &models))
         return false;
-    if (manifest.has_spline && !collect(manifest.spline, &splines))
+    if (manifest.has_spline &&
+        !collect(manifest.spline, swrLoader_TYPE_SPLINE_BLOCK, &splines))
         return false;
     for (const TrackAsset &texture: manifest.textures) {
-        if (!collect(texture, &textures))
+        if (!collect(texture, swrLoader_TYPE_TEXTURE_BLOCK, &textures))
             return false;
     }
 
