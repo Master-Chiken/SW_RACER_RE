@@ -1,3 +1,5 @@
-# All changes to this working fork require Project Owner review when CODEOWNERS
-# review is enabled in the default branch's protection settings.
+# The Project Owner reviews all paths when required CODEOWNERS review is enabled.
 * @Master-Chiken
+
+# Protect the ownership rules themselves from being changed without owner review.
+/.github/CODEOWNERS @Master-Chiken
