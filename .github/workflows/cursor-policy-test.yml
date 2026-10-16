@@ -1,0 +1,36 @@
+name: Cursor policy tests
+
+on:
+  push:
+    paths:
+      - ".github/workflows/cursor-policy-test.yml"
+      - "dinput_hook/cursor_policy.h"
+      - "dinput_hook/game_deltas/swrSprite_delta.cpp"
+      - "tests/cursor_policy_test.cpp"
+  pull_request:
+    paths:
+      - ".github/workflows/cursor-policy-test.yml"
+      - "dinput_hook/cursor_policy.h"
+      - "dinput_hook/game_deltas/swrSprite_delta.cpp"
+      - "tests/cursor_policy_test.cpp"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: g++
+            extra_flags: ""
+          - compiler: clang++
+            extra_flags: ""
+          - compiler: g++
+            extra_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run cursor policy tests
+        shell: bash
+        run: |
+          ${{ matrix.compiler }} -std=c++20 -Wall -Wextra -Werror -pedantic ${{ matrix.extra_flags }} tests/cursor_policy_test.cpp -o /tmp/cursor-policy-test
+          /tmp/cursor-policy-test
