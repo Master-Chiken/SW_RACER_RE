@@ -38,6 +38,7 @@ jobs:
           python scripts\check_hook_annotations.py
           python scripts\check_hd_replacement_default.py
           python tests\test_raw_model_validator.py
+          python tests\test_track_catalog_server.py
 
       - &llvm-mingw-cache
         name: Cache llvm-mingw
