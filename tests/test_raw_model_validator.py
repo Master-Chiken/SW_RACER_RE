@@ -113,5 +113,94 @@ class RawModelValidatorTests(unittest.TestCase):
         self.assertEqual(convert_track_pack.entry_count(struct.pack(">I", 1) + bytes(12)), 1)
 
 
+    # Adversarial packed-block tests for the discrete-asset extractor. These use synthetic
+    # headers only; no original game files are needed in CI.
+    def test_model_rejects_truncated_offset_table(self) -> None:
+        block = struct.pack(">I", 2) + struct.pack(">III", 16, 20, 24) + bytes(4)
+        with self.assertRaisesRegex(ValueError, "truncated model offset table"):
+            extract_raw_asset.carve("model", block, 0)
+
+    def test_model_rejects_reversed_offsets(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 24, 20) + bytes(8)
+        with self.assertRaisesRegex(ValueError, "invalid model offsets"):
+            extract_raw_asset.carve("model", block, 0)
+
+    def test_model_rejects_unaligned_offsets(self) -> None:
+        block = struct.pack(">IIII", 1, 17, 20, 24) + bytes(8)
+        with self.assertRaisesRegex(ValueError, "four-byte aligned"):
+            extract_raw_asset.carve("model", block, 0)
+
+    def test_model_rejects_empty_mask(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 16, 20) + bytes(4)
+        with self.assertRaisesRegex(ValueError, "invalid mask/model sizes"):
+            extract_raw_asset.carve("model", block, 0)
+
+    def test_spline_rejects_truncated_offset_table(self) -> None:
+        block = struct.pack(">II", 1, 12)
+        with self.assertRaisesRegex(ValueError, "truncated spline offset table"):
+            extract_raw_asset.carve("spline", block, 0)
+
+    def test_spline_rejects_payload_before_table(self) -> None:
+        block = struct.pack(">III", 1, 8, 16) + bytes(4)
+        with self.assertRaisesRegex(ValueError, "invalid spline offsets"):
+            extract_raw_asset.carve("spline", block, 0)
+
+    def test_spline_rejects_end_past_eof(self) -> None:
+        block = struct.pack(">III", 1, 12, 20) + bytes(4)
+        with self.assertRaisesRegex(ValueError, "invalid spline offsets"):
+            extract_raw_asset.carve("spline", block, 0)
+
+    def test_spline_rejects_unaligned_offsets(self) -> None:
+        block = struct.pack(">III", 1, 13, 16) + bytes(4)
+        with self.assertRaisesRegex(ValueError, "four-byte aligned"):
+            extract_raw_asset.carve("spline", block, 0)
+
+    def test_texture_rejects_truncated_offset_table(self) -> None:
+        block = struct.pack(">III", 2, 12, 0)
+        with self.assertRaisesRegex(ValueError, "truncated texture offset table"):
+            extract_raw_asset.carve("texture", block, 0)
+
+    def test_texture_rejects_pixels_before_table(self) -> None:
+        block = struct.pack(">III", 1, 8, 0) + bytes(8)
+        with self.assertRaisesRegex(ValueError, "invalid texture offsets"):
+            extract_raw_asset.carve("texture", block, 0)
+
+    def test_texture_rejects_palette_before_pixels(self) -> None:
+        block = struct.pack(">III", 1, 12, 8) + b"ABCDEFGH"
+        with self.assertRaisesRegex(ValueError, "invalid palette offset"):
+            extract_raw_asset.carve("texture", block, 0)
+
+    def test_texture_rejects_palette_past_eof(self) -> None:
+        block = struct.pack(">III", 1, 12, 20) + b"ABCD"
+        with self.assertRaisesRegex(ValueError, "invalid palette offset"):
+            extract_raw_asset.carve("texture", block, 0)
+
+    def test_texture_rejects_unaligned_offsets(self) -> None:
+        block = struct.pack(">III", 1, 13, 0) + b"ABC"
+        with self.assertRaisesRegex(ValueError, "four-byte aligned"):
+            extract_raw_asset.carve("texture", block, 0)
+
+    def test_texture_multi_entry_ranges_are_derived_from_next_entry(self) -> None:
+        block = struct.pack(">IIIII", 2, 20, 0, 24, 0) + b"ABCDEFGH"
+        first = extract_raw_asset.carve("texture", block, 0)
+        second = extract_raw_asset.carve("texture", block, 1)
+        self.assertEqual(extract_raw_asset.payloads("texture", first), [b"ABCD", b""])
+        self.assertEqual(extract_raw_asset.payloads("texture", second), [b"EFGH", b""])
+        self.assertEqual(extract_raw_asset.verify_block("texture", block), 0)
+
+    def test_all_extractors_reject_out_of_range_ids(self) -> None:
+        model = struct.pack(">IIII", 1, 16, 20, 24) + bytes(8)
+        spline = struct.pack(">III", 1, 12, 16) + b"ABCD"
+        texture = struct.pack(">III", 1, 12, 0) + b"ABCD"
+        for kind, block in (("model", model), ("spline", spline), ("texture", texture)):
+            with self.subTest(kind=kind):
+                with self.assertRaisesRegex(ValueError, "out of range"):
+                    extract_raw_asset.carve(kind, block, 1)
+
+    def test_unknown_asset_kind_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown asset kind"):
+            extract_raw_asset.carve("sprite", b"\x00\x00\x00\x00", 0)
+
+
 if __name__ == "__main__":
     unittest.main()
