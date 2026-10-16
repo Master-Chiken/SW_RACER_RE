@@ -17,6 +17,7 @@
 #include "camera/player_camera.h"
 #include "ai_tuning.h"
 #include "audio_mix.h"
+#include "cinematic_audio.h"
 
 extern "C" {
 #include "./game_deltas/DirectX_delta.h"
@@ -2253,11 +2254,12 @@ extern "C" int Window_PlayCinematic_delta(char **znmFile) {
     int result = 1;// nonzero == handled
     if (!(is_startup ? cutscene_should_skip_startup_movies()
                      : cutscene_should_skip_prerace_cinematic())) {
-        // Scale the Smush cinematic volume by the mod's master*cutscene knob (see comment above).
+        // Scale the Smush cinematic volume by the mod's master*cutscene knob. The helper also
+        // preserves the game's -s/no-sound switch and clamps the effective volume.
         const int saved_intro = swrMain_introMoviesPending;
         const short saved_music_vol = sound_music_volume;
-        float effective = imgui_state.master_volume * imgui_state.cutscene_volume;
-        effective = effective < 0.0f ? 0.0f : (effective > 1.0f ? 1.0f : effective);
+        const float effective = cinematic_effective_volume(
+            Main_sound, imgui_state.master_volume, imgui_state.cutscene_volume);
         swrMain_introMoviesPending = 0;
         sound_music_volume = (short) (effective * 255.0f);
 
