@@ -2,6 +2,7 @@
 """Regression tests for scripts/validate_raw_model.py."""
 from __future__ import annotations
 import struct
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -11,6 +12,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import validate_raw_model  # noqa: E402
 import extract_raw_model  # noqa: E402
 import extract_raw_asset  # noqa: E402
+import convert_track_pack  # noqa: E402
+import gc_content_store  # noqa: E402
 
 
 def raw_chunk(mask: bytes, model: bytes, magic: bytes = b"RAWM") -> bytes:
@@ -89,6 +92,25 @@ class RawModelValidatorTests(unittest.TestCase):
         block = struct.pack(">IIII", 1, 16, 20, 0x100) + bytes(4) + b"Modl"
         with self.assertRaises(ValueError):
             extract_raw_asset.carve("model", block, 0)
+
+
+    def test_content_store_ignores_non_sha256_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = root / "content"
+            referenced = "a" * 64
+            orphan = "b" * 64
+            (store / "aa").mkdir(parents=True)
+            (store / "bb").mkdir(parents=True)
+            (store / "zz").mkdir(parents=True)
+            (store / "aa" / referenced).write_bytes(b"used")
+            (store / "bb" / orphan).write_bytes(b"unused")
+            (store / "zz" / "notes.txt").write_text("not a content blob", encoding="utf-8")
+            blobs = gc_content_store.stored_blobs(str(root))
+            self.assertEqual(set(blobs), {referenced, orphan})
+
+    def test_converter_imports_asset_carver(self) -> None:
+        self.assertEqual(convert_track_pack.entry_count(struct.pack(">I", 1) + bytes(12)), 1)
 
 
 if __name__ == "__main__":
