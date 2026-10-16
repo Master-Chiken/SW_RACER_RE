@@ -72,13 +72,16 @@ namespace {
             return nullptr;
 
         --it;
-        const long region_size = static_cast<long>(it->size);
-        if (offset < it->virtual_offset || it->virtual_offset > LONG_MAX - region_size)
+        if (it->virtual_offset < 0 || offset < it->virtual_offset)
+            return nullptr;
+        const uint64_t region_begin = static_cast<uint64_t>(it->virtual_offset);
+        const uint64_t region_size = static_cast<uint64_t>(it->size);
+        const uint64_t max_offset = static_cast<uint64_t>(LONG_MAX);
+        if (region_size > max_offset - region_begin)
             return nullptr;
         if (virtual_block_policy::range_within(
                 static_cast<uint64_t>(offset), static_cast<uint64_t>(size),
-                static_cast<uint64_t>(it->virtual_offset),
-                static_cast<uint64_t>(it->virtual_offset + region_size)))
+                region_begin, region_begin + region_size))
             return &*it;
         return nullptr;
     }
