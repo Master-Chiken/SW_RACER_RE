@@ -6,6 +6,7 @@
 #include <cstring>
 #include <filesystem>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <system_error>
