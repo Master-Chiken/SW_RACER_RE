@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import validate_raw_model  # noqa: E402
 import extract_raw_model  # noqa: E402
+import extract_raw_asset  # noqa: E402
 
 
 def raw_chunk(mask: bytes, model: bytes, magic: bytes = b"RAWM") -> bytes:
@@ -61,6 +62,33 @@ class RawModelValidatorTests(unittest.TestCase):
     def test_rejects_truncated_stock_offsets(self) -> None:
         with self.assertRaises(ValueError):
             validate_raw_model.inspect_stock_model(bytes(4), 0)
+
+
+    def test_roundtrips_model_raw_asset(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 20, 24) + bytes(4) + b"Modl"
+        chunk = extract_raw_asset.carve("model", block, 0)
+        self.assertEqual(chunk[:4], b"RAWM")
+        self.assertEqual(b"".join(extract_raw_asset.payloads("model", chunk)), bytes(4) + b"Modl")
+        self.assertEqual(extract_raw_asset.verify_block("model", block), 0)
+
+    def test_roundtrips_spline_raw_asset(self) -> None:
+        block = struct.pack(">III", 1, 12, 16) + b"ABCD"
+        chunk = extract_raw_asset.carve("spline", block, 0)
+        self.assertEqual(chunk[:4], b"RAWS")
+        self.assertEqual(extract_raw_asset.payloads("spline", chunk), [b"ABCD"])
+        self.assertEqual(extract_raw_asset.verify_block("spline", block), 0)
+
+    def test_roundtrips_texture_without_palette(self) -> None:
+        block = struct.pack(">III", 1, 12, 0) + b"ABCD"
+        chunk = extract_raw_asset.carve("texture", block, 0)
+        self.assertEqual(chunk[:4], b"RAWT")
+        self.assertEqual(extract_raw_asset.payloads("texture", chunk), [b"ABCD", b""])
+        self.assertEqual(extract_raw_asset.verify_block("texture", block), 0)
+
+    def test_rejects_out_of_range_asset_offsets(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 20, 0x100) + bytes(4) + b"Modl"
+        with self.assertRaises(ValueError):
+            extract_raw_asset.carve("model", block, 0)
 
 
 if __name__ == "__main__":
