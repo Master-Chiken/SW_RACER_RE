@@ -38,6 +38,7 @@ extern "C" {
 #include "./game_deltas/swrControl_delta.h"
 #include "./game_deltas/swrModel_delta.h"
 #include "./game_deltas/swrSpline_delta.h"
+#include "virtual_block.h"
 #include "./game_deltas/swrAssetBuffer_delta.h"
 #include "./game_deltas/swrObjJdge_delta.h"
 #include "./game_deltas/swrGamepadNav_delta.h"
@@ -3064,6 +3065,9 @@ extern "C" void init_renderer_hooks() {
     hook_function("swrSpline_LoadSplineById", (uint32_t) swrSpline_LoadSplineById,
                   (uint8_t *) swrSpline_LoadSplineById_ADDR);
     hook_replace(swrSpline_LoadSplineById, swrSpline_LoadSplineById_delta);
+
+    // Keep packed-block reads in one seam, falling through unchanged unless a view is installed.
+    virtual_block_RegisterHooks();
 
     hook_function("swrSpline_EvaluateToMatrix", (uint32_t) swrSpline_EvaluateToMatrix,
                   (uint8_t *) swrSpline_EvaluateToMatrix_ADDR);
