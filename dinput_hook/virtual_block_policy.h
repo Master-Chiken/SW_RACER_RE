@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <cstring>
 
 namespace virtual_block_policy {
 
@@ -83,6 +84,13 @@ inline bool source_model_split_valid(uint64_t first, uint64_t second,
 inline bool source_texture_split_valid(uint64_t first, uint64_t second,
                                        uint64_t next) noexcept {
     return second == 0 || (second >= first && second <= next);
+}
+
+// A view is only safe for the exact archive it was built against. A missing current
+// path is not a match: treating nullptr as "no mismatch" can expose stale file offsets.
+inline bool source_path_matches(const char *source_path, const char *current_path) noexcept {
+    return source_path != nullptr && current_path != nullptr &&
+           std::strcmp(source_path, current_path) == 0;
 }
 
 } // namespace virtual_block_policy
