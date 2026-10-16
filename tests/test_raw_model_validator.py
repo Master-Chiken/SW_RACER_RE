@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import validate_raw_model  # noqa: E402
+import extract_raw_model  # noqa: E402
 
 
 def raw_chunk(mask: bytes, model: bytes, magic: bytes = b"RAWM") -> bytes:
@@ -44,6 +45,22 @@ class RawModelValidatorTests(unittest.TestCase):
         model = b"Modl" + struct.pack(">I", 0x100)
         problems, _ = validate_raw_model.analyze(raw_chunk(mask, model))
         self.assertTrue(any("point past the end of the model" in p for p in problems))
+
+
+    def test_extracts_model_from_valid_block(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 20, 24) + bytes(4) + b"Comp"
+        mask, model = extract_raw_model.extract_model_bytes(block, 0)
+        self.assertEqual(mask, bytes(4))
+        self.assertEqual(model, b"Comp")
+
+    def test_rejects_extractor_offset_outside_block(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 20, 0x100) + bytes(4) + b"Comp"
+        with self.assertRaises(ValueError):
+            extract_raw_model.extract_model_bytes(block, 0)
+
+    def test_rejects_truncated_stock_offsets(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_raw_model.inspect_stock_model(bytes(4), 0)
 
 
 if __name__ == "__main__":
