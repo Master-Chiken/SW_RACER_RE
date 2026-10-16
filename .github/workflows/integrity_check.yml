@@ -92,7 +92,7 @@ jobs:
       - name: Run production virtual-block builder integration tests
         shell: pwsh
         run: |
-          & "$env:LLVM_MINGW_ROOT\bin\clang++.exe" --target=i686-w64-mingw32 -std=c++20 -static -static-libgcc -Wall -Wextra -pedantic -ffunction-sections -fdata-sections -Wl,--gc-sections -I "src" -I "dinput_hook" -I "dinput_hook\detours-master\include" tests\virtual_block_integration_test.cpp dinput_hook\virtual_block.cpp -o virtual_block_integration_test.exe
+          & "$env:LLVM_MINGW_ROOT\bin\clang++.exe" --target=i686-w64-mingw32 -std=c++20 -static -static-libgcc -Wall -Wextra -pedantic -ffunction-sections -fdata-sections "-Wl,--gc-sections" -I "src" -I "dinput_hook" -I "dinput_hook\detours-master\include" tests\virtual_block_integration_test.cpp dinput_hook\virtual_block.cpp -o virtual_block_integration_test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\virtual_block_integration_test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
