@@ -10,6 +10,7 @@ look sane. If the stock block + id are given, compares against stock.
 """
 import struct
 import sys
+from pathlib import Path
 
 KNOWN_TAGS = {b"Modl", b"Trak", b"Podd", b"Part", b"Scen", b"MAlt", b"Pupp"}
 
@@ -101,37 +102,64 @@ def analyze(chunk):
     return problems, notes
 
 
+def inspect_stock_model(block, model_id):
+    """Return offsets for a stock model or reject a malformed block/table."""
+    if len(block) < 4:
+        raise ValueError("stock block is shorter than its count header")
+    count = be32(block, 0)
+    if model_id < 0 or model_id >= count:
+        raise ValueError(f"stock model id {model_id} out of range (block has {count} models)")
+    table_end = 8 * count + 8
+    if table_end > len(block):
+        raise ValueError(f"stock offset table is truncated (needs {table_end} bytes)")
+    offset = 8 * model_id + 4
+    mask_offset = be32(block, offset)
+    model_offset = be32(block, offset + 4)
+    next_offset = be32(block, offset + 8)
+    if not (table_end <= mask_offset <= model_offset <= next_offset <= len(block)):
+        raise ValueError("stock model offsets are outside the block or out of order")
+    if any(value % 4 for value in (mask_offset, model_offset, next_offset)):
+        raise ValueError("stock model offsets are not four-byte aligned")
+    return mask_offset, model_offset, next_offset
+
+
 def main():
     if len(sys.argv) not in (2, 4):
         print(__doc__)
-        sys.exit(1)
+        return 1
 
-    with open(sys.argv[1], "rb") as f:
-        chunk = f.read()
+    try:
+        chunk = Path(sys.argv[1]).read_bytes()
+    except OSError as exc:
+        print(f"error: cannot read chunk: {exc}", file=sys.stderr)
+        return 2
 
     print(f"=== {sys.argv[1]} ===")
     problems, notes = analyze(chunk)
-    for n in notes:
-        print(f"  - {n}")
+    for note in notes:
+        print(f"  - {note}")
 
     if len(sys.argv) == 4:
-        with open(sys.argv[2], "rb") as f:
-            block = f.read()
-        mid = int(sys.argv[3])
-        m_off = be32(block, 8 * mid + 4)
-        d_off = be32(block, 8 * mid + 8)
-        nx_off = be32(block, 8 * mid + 12)
-        print(f"  - stock model {mid}: mask_size={d_off - m_off} model_size={nx_off - d_off} "
-              f"tag={block[d_off:d_off + 4]!r}")
+        try:
+            block = Path(sys.argv[2]).read_bytes()
+            mid = int(sys.argv[3], 10)
+            mask_offset, model_offset, next_offset = inspect_stock_model(block, mid)
+        except (OSError, ValueError, struct.error) as exc:
+            print(f"error: invalid stock block or model id: {exc}", file=sys.stderr)
+            return 2
+        print(f"  - stock model {mid}: mask_size={model_offset - mask_offset} "
+              f"model_size={next_offset - model_offset} "
+              f"tag={block[model_offset:model_offset + 4]!r}")
 
     if problems:
         print("PROBLEMS:")
-        for p in problems:
-            print(f"  !! {p}")
-        sys.exit(2)
+        for problem in problems:
+            print(f"  !! {problem}")
+        return 2
     print("OK: no structural problems found "
           "(a crash may still come from out-of-range texture indices or n64 display-list quirks)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
