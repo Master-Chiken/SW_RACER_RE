@@ -164,6 +164,13 @@ void test_spline_fallback_and_override(const fs::path &root) {
               read_range(path, view.regions[1].file_offset, view.regions[1].size) ==
                   sequence(0x34, 4),
           "undeclared spline index falls through to original stock data");
+
+    virtual_block_Install(swrLoader_TYPE_SPLINE_BLOCK, std::move(view));
+    check(virtual_block_IsInstalled(swrLoader_TYPE_SPLINE_BLOCK),
+          "install marks a spline view active");
+    virtual_block_Remove(swrLoader_TYPE_SPLINE_BLOCK);
+    check(!virtual_block_IsInstalled(swrLoader_TYPE_SPLINE_BLOCK),
+          "removing the spline view restores pass-through state");
 }
 
 void test_texture_fallback_and_override(const fs::path &root) {
@@ -198,6 +205,13 @@ void test_texture_fallback_and_override(const fs::path &root) {
                                    view.regions[1].memory + view.regions[1].size) ==
                   sequence(0xE0, 8),
           "declared texture index maps to its replacement payload");
+
+    virtual_block_Install(swrLoader_TYPE_TEXTURE_BLOCK, std::move(view));
+    check(virtual_block_IsInstalled(swrLoader_TYPE_TEXTURE_BLOCK),
+          "install marks a texture view active");
+    virtual_block_Remove(swrLoader_TYPE_TEXTURE_BLOCK);
+    check(!virtual_block_IsInstalled(swrLoader_TYPE_TEXTURE_BLOCK),
+          "removing the texture view restores pass-through state");
 }
 
 void test_malformed_source_and_overrides(const fs::path &root) {
