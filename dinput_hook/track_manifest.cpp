@@ -73,7 +73,7 @@ namespace {
 
         int64_t index = -1;
         if (element[index_key].get(index) != simdjson::SUCCESS || index < 0 ||
-            static_cast<uint64_t>(index) > UINT32_MAX)
+            static_cast<uint64_t>(index) >= 1'000'000ULL)
             return false;
 
         int64_t declared_size = 0;
@@ -170,7 +170,8 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
     manifest.name = get_string(root, "name", manifest.slug.c_str());
     manifest.content_hash = get_string(root, "content_hash", "");
     if (manifest.slug.empty() || manifest.slug.size() > 128 ||
-        manifest.slug.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789-_") != std::string::npos) {
+        manifest.slug == "." || manifest.slug == ".." ||
+        manifest.slug.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") != std::string::npos) {
         if (hook_log) {
             fprintf(hook_log, "[track_manifest] %s has an invalid or empty slug\n",
                     path.generic_string().c_str());
@@ -229,6 +230,17 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
                 return false;
             }
             manifest.textures.push_back(std::move(asset));
+        }
+        std::set<uint32_t> texture_indices;
+        for (const TrackAsset &asset: manifest.textures) {
+            if (!texture_indices.insert(asset.block_index).second) {
+                if (hook_log) {
+                    fprintf(hook_log, "[track_manifest] %s repeats texture block index %u\n",
+                            path.generic_string().c_str(), asset.block_index);
+                    fflush(hook_log);
+                }
+                return false;
+            }
         }
     } else if (textures_error != simdjson::NO_SUCH_FIELD) {
         if (hook_log) {
