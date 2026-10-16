@@ -17,7 +17,7 @@ All this work, discussion and collaboration is done in the official [Discord ser
 
 ## Project governance and roles
 
-The [project governance guide](GOVERNANCE.md) explains who makes decisions, how technical responsibilities can be delegated, and how contributors can submit work while the Project Owner retains final merge authority.
+The [project governance guide](GOVERNANCE.md) explains who makes decisions, how technical responsibilities can be delegated, and how contributors can submit work while the Project Owner retains final merge authority. See also the [repository access and branch protection](ACCESS_CONTROL.md) checklist.
 
 ## Want to contribute?
 
