@@ -14,6 +14,13 @@ enum class Kind {
 
 inline constexpr uint64_t kMaxBlockEntries = 1'000'000ULL;
 
+// Checks whether [offset, offset + size) is contained in [begin, end) without
+// forming offset + size, which could overflow for untrusted read ranges.
+inline bool range_within(uint64_t offset, uint64_t size, uint64_t begin,
+                         uint64_t end) noexcept {
+    return begin <= end && offset >= begin && offset <= end && size <= end - offset;
+}
+
 inline bool words_per_entry(Kind kind, uint64_t *out) noexcept {
     if (out == nullptr)
         return false;
