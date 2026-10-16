@@ -123,16 +123,6 @@ namespace {
         return true;
     }
 
-    bool equals_ignoring_case(const std::string &a, const std::string &b) {
-        if (a.size() != b.size())
-            return false;
-        for (size_t i = 0; i < a.size(); i++) {
-            if (tolower((unsigned char) a[i]) != tolower((unsigned char) b[i]))
-                return false;
-        }
-        return true;
-    }
-
     // Blobs are immutable, so one verification per hash per session is enough; a track raced twice
     // does not pay for it twice.
     std::set<std::string> verified_blobs;
@@ -260,7 +250,7 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
         const int64_t favorite = get_int(placement, "favorite_pilot", 0);
         const int64_t stock_slot = get_int(placement, "overrides_stock_slot", -1);
         if (planet < 0 || planet >= 8 || planet_track < 0 || planet_track > 255 ||
-            favorite < 0 || favorite >= 25 || stock_slot < -1 || stock_slot >= 25) {
+            favorite < 0 || favorite > 255 || stock_slot < -1 || stock_slot >= 25) {
             if (hook_log) {
                 fprintf(hook_log, "[track_manifest] %s has an out-of-range placement value\n",
                         path.generic_string().c_str());
