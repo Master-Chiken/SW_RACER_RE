@@ -75,7 +75,10 @@ namespace {
         const long region_size = static_cast<long>(it->size);
         if (offset < it->virtual_offset || it->virtual_offset > LONG_MAX - region_size)
             return nullptr;
-        if (offset + span <= it->virtual_offset + region_size)
+        if (virtual_block_policy::range_within(
+                static_cast<uint64_t>(offset), static_cast<uint64_t>(size),
+                static_cast<uint64_t>(it->virtual_offset),
+                static_cast<uint64_t>(it->virtual_offset + region_size)))
             return &*it;
         return nullptr;
     }
@@ -487,8 +490,9 @@ size_t swrLoader_ReadAt_delta(swrLoader_TYPE type, long offset, void *dst, size_
     }
 
     if (offset >= 0 && size <= static_cast<size_t>(LONG_MAX) &&
-        offset <= LONG_MAX - static_cast<long>(size) &&
-        offset + static_cast<long>(size) <= static_cast<long>(view.header.size())) {
+        virtual_block_policy::range_within(static_cast<uint64_t>(offset),
+                                           static_cast<uint64_t>(size), 0,
+                                           static_cast<uint64_t>(view.header.size()))) {
         memcpy(dst, view.header.data() + offset, size);
         stats[type].from_header++;
         return 1;// the original returns fread's element count
