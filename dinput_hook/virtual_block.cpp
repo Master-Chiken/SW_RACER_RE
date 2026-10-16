@@ -98,6 +98,16 @@ namespace {
         }
     }
 
+    uint64_t table_header_size(swrLoader_TYPE type, uint64_t count) {
+        if (type == swrLoader_TYPE_MODEL_BLOCK)
+            return 4ULL + 4ULL * (2ULL * count + 1ULL);
+        if (type == swrLoader_TYPE_SPLINE_BLOCK)
+            return 4ULL + 4ULL * (count + 1ULL);
+        if (type == swrLoader_TYPE_TEXTURE_BLOCK)
+            return 4ULL + 8ULL * count;
+        return 0;
+    }
+
     uint32_t read_be32(const std::vector<uint8_t> &bytes, size_t offset) {
         return (uint32_t) bytes[offset] << 24 | (uint32_t) bytes[offset + 1] << 16 |
             (uint32_t) bytes[offset + 2] << 8 | (uint32_t) bytes[offset + 3];
@@ -149,15 +159,28 @@ namespace {
                                (uint32_t) count_bytes[2] << 8 |
                                (uint32_t) count_bytes[3];
 
-        // Stock blocks have only thousands of entries. Cap malformed counts before allocating
-        // the table or the entry vector, then verify the complete offset table fits in the file.
+        // The stock formats differ at the tail of their offset tables:
+        // model = 2 words per entry plus one final model-end offset;
+        // spline = one offset per entry plus one final end offset;
+        // texture = exactly two words per entry, with the final texture ending at EOF.
         constexpr uint32_t MAX_BLOCK_ENTRIES = 1'000'000;
         if (count > MAX_BLOCK_ENTRIES) {
             fclose(f);
             return false;
         }
-        const uint64_t table_bytes64 = 4ULL * static_cast<uint64_t>(words) *
-                                       (static_cast<uint64_t>(count) + 1ULL);
+        uint64_t table_words_count = 0;
+        if (type == swrLoader_TYPE_MODEL_BLOCK)
+            table_words_count = 2ULL * count + 1ULL;
+        else if (type == swrLoader_TYPE_SPLINE_BLOCK)
+            table_words_count = static_cast<uint64_t>(count) + 1ULL;
+        else if (type == swrLoader_TYPE_TEXTURE_BLOCK)
+            table_words_count = 2ULL * count;
+        else {
+            fclose(f);
+            return false;
+        }
+
+        const uint64_t table_bytes64 = 4ULL * table_words_count;
         const uint64_t table_end64 = 4ULL + table_bytes64;
         if (table_bytes64 > std::numeric_limits<size_t>::max() ||
             table_end64 > static_cast<uint64_t>(file_length)) {
@@ -172,7 +195,7 @@ namespace {
             fclose(f);
             return false;
         }
-        if (fread(table.data(), 1, table.size(), f) != table.size()) {
+        if (!table.empty() && fread(table.data(), 1, table.size(), f) != table.size()) {
             fclose(f);
             return false;
         }
@@ -189,9 +212,21 @@ namespace {
         for (uint32_t i = 0; i < count; i++) {
             const size_t table_offset = 4u * static_cast<size_t>(words) * i;
             const uint32_t first = read_be32(table, table_offset);
-            const uint32_t next_first =
-                read_be32(table, 4u * static_cast<size_t>(words) * (i + 1u));
-            uint32_t split = 0;
+            uint32_t second = 0;
+            uint32_t next_first = 0;
+
+            if (words == 2) {
+                second = read_be32(table, table_offset + 4);
+                if (type == swrLoader_TYPE_TEXTURE_BLOCK) {
+                    next_first = (i + 1 < count)
+                                     ? read_be32(table, 4u * static_cast<size_t>(words) * (i + 1u))
+                                     : static_cast<uint32_t>(file_length);
+                } else {
+                    next_first = read_be32(table, 4u * static_cast<size_t>(words) * (i + 1u));
+                }
+            } else {
+                next_first = read_be32(table, 4u * static_cast<size_t>(words) * (i + 1u));
+            }
 
             if (first < table_end || next_first < first ||
                 next_first > static_cast<uint64_t>(file_length)) {
@@ -199,8 +234,8 @@ namespace {
                 return false;
             }
 
+            uint32_t split = 0;
             if (words == 2) {
-                const uint32_t second = read_be32(table, table_offset + 4);
                 if (type == swrLoader_TYPE_MODEL_BLOCK) {
                     if (next_first != first && (second <= first || second > next_first)) {
                         entries->clear();
@@ -208,7 +243,7 @@ namespace {
                     }
                     split = second >= first ? second - first : 0;
                 } else {
-                    // For textures, palette offset zero means that no palette is present.
+                    // For textures, palette offset zero means no palette is present.
                     if (second != 0 && (second < first || second > next_first)) {
                         entries->clear();
                         return false;
@@ -216,6 +251,7 @@ namespace {
                     split = second != 0 ? second - first : 0;
                 }
             }
+
             (*entries)[i] = {first, next_first, split};
         }
         return true;
@@ -280,8 +316,7 @@ bool virtual_block_BuildView(swrLoader_TYPE type, const char *source_path,
 
     if (count64 > MAX_BLOCK_ENTRIES)
         return false;
-    const uint64_t header_size64 =
-        4ULL + 4ULL * static_cast<uint64_t>(words) * (count64 + 1ULL);
+    const uint64_t header_size64 = table_header_size(type, count64);
     if (header_size64 > UINT32_MAX || header_size64 > static_cast<uint64_t>(LONG_MAX) ||
         header_size64 > std::numeric_limits<size_t>::max())
         return false;
@@ -318,14 +353,23 @@ bool virtual_block_BuildView(swrLoader_TYPE type, const char *source_path,
             split = source[i].split;
             view.regions.push_back({static_cast<long>(cursor), static_cast<uint32_t>(size),
                                     nullptr, static_cast<long>(source[i].begin)});
+        } else if (i >= source.size()) {
+            // Extending a block with sparse indices would create malformed entries. Do not install
+            // a partial view that can crash when the game requests one of those gaps.
+            if (hook_log) {
+                fprintf(hook_log, "[virtual_block] missing extension entry %u; refusing view\n", i);
+                fflush(hook_log);
+            }
+            return false;
         }
 
         write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * i,
                    static_cast<uint32_t>(cursor));
         if (words == 2) {
-            const uint32_t second = size != 0 && split != 0
-                                        ? static_cast<uint32_t>(cursor + split)
-                                        : 0;
+            const uint32_t second =
+                type == swrLoader_TYPE_MODEL_BLOCK
+                    ? static_cast<uint32_t>(cursor + (size != 0 ? split : 0))
+                    : (size != 0 && split != 0 ? static_cast<uint32_t>(cursor + split) : 0);
             write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * i + 4, second);
         }
         cursor += size;
@@ -333,8 +377,9 @@ bool virtual_block_BuildView(swrLoader_TYPE type, const char *source_path,
 
     if (cursor > UINT32_MAX || cursor > static_cast<uint64_t>(LONG_MAX))
         return false;
-    write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * count,
-               static_cast<uint32_t>(cursor));
+    if (type != swrLoader_TYPE_TEXTURE_BLOCK)
+        write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * count,
+                   static_cast<uint32_t>(cursor));
 
     *out = std::move(view);
     return true;
