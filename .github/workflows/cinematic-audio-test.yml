@@ -7,7 +7,6 @@ on:
       - "dinput_hook/renderer_hook.cpp"
       - "src/Main/swrMain.c"
       - "src/Swr/swrConfig.c"
-      - "dinput_hook/renderer_hook.cpp"
       - "tests/cinematic_audio_test.cpp"
       - ".github/workflows/cinematic-audio-test.yml"
   pull_request:
