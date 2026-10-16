@@ -6,22 +6,21 @@ Thank you for helping improve the Star Wars Episode I: Racer decompilation proje
 
 The goal is to document and re-implement selected functions of the original game so the modding community can understand and extend it. The project does **not** aim for matching compilation or a complete decompilation of every original function.
 
-Useful contributions include:
-- analysing and documenting a specific function or global variable;
-- checking function addresses, prototypes, calling conventions, or symbol names;
-- implementing a focused function whose behaviour is sufficiently understood;
-- reproducing and fixing a bug in the hook or supporting tools;
-- improving build instructions, scripts, tests, and developer documentation;
-- testing a change on a supported setup and reporting reproducible results.
+Contributors are welcome to work on substantial changes, not just beginner tasks. Useful contributions include:
+- implementing complete functions, systems, or features whose behaviour is sufficiently understood;
+- analysing related groups of functions and global variables;
+- improving architecture, C/C++ hooks, Python tooling, build/CI, tests, performance, and developer documentation;
+- reproducing and fixing bugs and verifying the changes in the game;
+- coordinating and maintaining a technical area after demonstrating reliable work.
 
-You do not need to be an expert in every part of the project. A small, well-documented contribution is valuable.
+You do not need permission for every small experiment in your own fork or feature branch. Coordinate before large architectural changes or work likely to overlap with someone else's task. The goal of review is to protect the official branch and keep changes understandable—not to prevent contributors from doing meaningful work.
 
 ## Before starting
 
 1. Read the project [README](README.md) and `NOTES.md`.
 2. Search the source tree before opening a new task, to avoid duplicating existing work.
 3. For a substantial reverse-engineering task, open an issue or discuss it in the [official Discord](https://discord.com/servers/star-wars-episode-i-racer-441839750555369474) before spending time on it.
-4. Keep each issue and pull request focused on one objective.
+4. Keep each pull request reviewable. A substantial feature is welcome; split it into dependent pull requests only when that makes implementation, testing, or review clearer.
 
 The README identifies `data_symbols.syms` as the source of truth for global variables. Generated function hooks are written to `src/generated/hook_generated.c` by `scripts/GenerateHooks.py` from `hook_generated_c.j2`. Do not make a manual-only edit to a generated file; update the relevant source/template and regenerate the output when appropriate.
 
