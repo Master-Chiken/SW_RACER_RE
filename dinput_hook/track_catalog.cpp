@@ -173,24 +173,6 @@ namespace {
         return fs::path("./assets/content") / sha256.substr(0, 2) / sha256;
     }
 
-    bool installed_matches(const CatalogTrack &track) {
-        if (!valid_slug(track.slug))
-            return false;
-        const fs::path path = fs::path("./assets/tracks") / track.slug / "track.json";
-        std::vector<uint8_t> bytes;
-        if (!read_file_limited(path, MAX_MANIFEST_BYTES, &bytes))
-            return false;
-        simdjson::dom::parser parser;
-        simdjson::dom::element root;
-        if (parser.parse(bytes.data(), bytes.size()).get(root) != simdjson::SUCCESS)
-            return false;
-        std::string_view slug, content_hash;
-        if (root["slug"].get(slug) != simdjson::SUCCESS ||
-            root["content_hash"].get(content_hash) != simdjson::SUCCESS)
-            return false;
-        return slug == track.slug && content_hash == track.content_hash &&
-               track.content_hash.size() == 64 && valid_sha256(track.content_hash);
-    }
     // One GET, whole response in memory. Fails loudly rather than half-succeeding: a partial body
     // would only be caught later by the hash check, and the message would be less useful.
     // Network is strictly worker-thread work. Reject malformed schemes and cap every response.
@@ -446,6 +428,29 @@ namespace {
             return false;
         std::string digest;
         return sha256_hex(bytes, &digest) && digest == asset.sha256;
+    }
+
+    bool installed_matches(const CatalogTrack &track) {
+        if (!valid_slug(track.slug) || !valid_sha256(track.content_hash))
+            return false;
+        const fs::path path = fs::path("./assets/tracks") / track.slug / "track.json";
+        std::vector<uint8_t> bytes;
+        if (!read_file_limited(path, MAX_MANIFEST_BYTES, &bytes))
+            return false;
+
+        const std::string manifest_json(reinterpret_cast<const char *>(bytes.data()), bytes.size());
+        std::vector<WantedAsset> assets;
+        std::string local_slug, local_content_hash, error;
+        if (!wanted_assets(manifest_json, &assets, &error, &local_slug, &local_content_hash) ||
+            local_slug != track.slug || local_content_hash != track.content_hash)
+            return false;
+
+        // A matching track.json is not enough: verify every local blob before showing "installed".
+        for (const WantedAsset &asset: assets) {
+            if (!blob_matches_asset(blob_path(asset.sha256), asset))
+                return false;
+        }
+        return true;
     }
 
     bool read_catalog_text(simdjson::dom::element entry, const char *key, std::string *out) {
