@@ -25,6 +25,8 @@ class TrackCatalogServerTests(unittest.TestCase):
             (tracks / "good").mkdir(parents=True)
             (tracks / "bad-json").mkdir()
             (tracks / "wrong-name").mkdir()
+            (tracks / "bad-author").mkdir()
+            (tracks / "bad-size").mkdir()
 
             good_manifest = {
                 "schema": 1,
@@ -42,6 +44,15 @@ class TrackCatalogServerTests(unittest.TestCase):
             (tracks / "bad-json" / "track.json").write_text("{", encoding="utf-8")
             (tracks / "wrong-name" / "track.json").write_text(
                 json.dumps({**good_manifest, "slug": "../escape"}), encoding="utf-8"
+            )
+            (tracks / "bad-author" / "track.json").write_text(
+                json.dumps({**good_manifest, "slug": "bad-author", "author": "not-an-object"}),
+                encoding="utf-8",
+            )
+            (tracks / "bad-size" / "track.json").write_text(
+                json.dumps({**good_manifest, "slug": "bad-size",
+                            "model": {**good_manifest["model"], "size": "24"}}),
+                encoding="utf-8",
             )
 
             index = serve_catalog.build_index(str(root))
