@@ -7,6 +7,7 @@
 #include "../hook_helper.h"
 #include "../camera/camera.h"// freecam_HudSpriteHidden
 #include "../imgui_utils.h"   // imgui_initialized + imgui_state.cursor_use_game_sprite
+#include "../cursor_policy.h"
 
 #include "../stb_image.h"
 
@@ -880,6 +881,24 @@ typedef void (*swrSprite_Draw2_t)(swrSprite *, int, float, float);
 
 void swrSprite_Draw2_delta(swrSprite *sprite, int pass_flags, float xscale, float yscale) {
     short id = (short) (sprite - swrSprite_array);
+
+    // The software cursor is a 640x480 widget-space sprite, while the global sprite draw scale uses
+    // the engine's roughly 320x240 space. Hide it at the final draw seam in OS-cursor mode as a
+    // backstop for screens that do not call DisplayCursor/ProcessMouse every frame (results screen).
+    // When the F5 overlay is open, ImGui owns the OS cursor even if game-cursor mode is enabled.
+    if (id == swrUISprite_d_cursor_rgb_0 && imgui_initialized) {
+        if (!cursor_policy_should_draw_game_sprite(imgui_state.cursor_use_game_sprite, show_imgui != 0))
+            return;
+
+        // Match cursor geometry and position to the same widget scale used by screen_to_design.
+        // Otherwise the software pointer gets the 320-space scale and is too large / misaligned.
+        if (ui_enabled()) {
+            const float factor = cursor_policy_scale_factor(ui_layout_scale(), ui_sprite_scale());
+            xscale *= factor;
+            yscale *= factor;
+        }
+    }
+
     if (freecam_HudSpriteHidden(id))
         return;// freecam Hide-HUD: drop every array sprite except the light streaks
     if (id >= 0 && id < 251 && g_sprite_proj_fine[id]) {
