@@ -130,8 +130,8 @@ class RawModelValidatorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "four-byte aligned"):
             extract_raw_asset.carve("model", block, 0)
 
-    def test_model_rejects_empty_mask(self) -> None:
-        block = struct.pack(">IIII", 1, 16, 16, 20) + bytes(4)
+    def test_model_rejects_empty_model_payload(self) -> None:
+        block = struct.pack(">IIII", 1, 16, 20, 20) + bytes(4)
         with self.assertRaisesRegex(ValueError, "invalid mask/model sizes"):
             extract_raw_asset.carve("model", block, 0)
 
