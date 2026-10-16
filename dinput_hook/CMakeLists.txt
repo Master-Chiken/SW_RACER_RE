@@ -76,7 +76,7 @@ add_custom_target(generate_build_id ALL
 )
 
 if (NOT USE_RELEASE_HOOK)
-    file(GLOB HOOK_SOURCES *.c *.cpp *.h game_deltas/*.c game_deltas/*.cpp game_deltas/*.h camera/*.cpp camera/*.h nv_dds/*.h nv_dds/*.cpp)
+    file(GLOB HOOK_SOURCES CONFIGURE_DEPENDS *.c *.cpp *.h game_deltas/*.c game_deltas/*.cpp game_deltas/*.h camera/*.cpp camera/*.h nv_dds/*.h nv_dds/*.cpp)
     add_library(dinput_hook SHARED
         ${HOOK_SOURCES}
         ${EMBEDDED_SHADERS_HEADER}
@@ -84,10 +84,12 @@ if (NOT USE_RELEASE_HOOK)
     )
     add_dependencies(dinput_hook generate_embedded_shaders generate_build_id)
     target_include_directories(dinput_hook PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+    # The manifest parser uses simdjson, already vendored as a fastgltf dependency.
+    target_include_directories(dinput_hook PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/fastgltf-0.8.0/deps/simdjson)
     target_compile_definitions(dinput_hook PRIVATE ENABLE_GLFW_INPUT_HANDLING=0)
     target_compile_definitions(dinput_hook PRIVATE ENABLE_GAMEPAD_NAV=1)
     target_compile_definitions(dinput_hook PRIVATE ENABLE_XINPUT_RUMBLE=1)
-    target_link_libraries(dinput_hook PRIVATE swe1r_functions swe1r_globals swr_memsafety imgui kernel32  Dwmapi dxguid detours ddraw opengl32 glad glfw fastgltf)
+    target_link_libraries(dinput_hook PRIVATE swe1r_functions swe1r_globals swr_memsafety imgui kernel32 bcrypt Dwmapi dxguid detours ddraw opengl32 glad glfw fastgltf)
     target_link_options(dinput_hook PRIVATE "-Wl,--kill-at")
 
     if (GAME_DIR)
