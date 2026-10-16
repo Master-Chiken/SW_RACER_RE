@@ -1,7 +1,13 @@
 #include "track_manifest.h"
 
+#include <algorithm>
+#include <cctype>
+#include <climits>
+#include <cstdio>
 #include <cstring>
+#include <limits>
 #include <set>
+#include <string_view>
 
 #include <windows.h>
 #include <bcrypt.h>
@@ -19,6 +25,8 @@ namespace {
     const char *TRACKS_DIR = "./assets/tracks";
     const char *CONTENT_DIR = "./assets/content";
 
+    constexpr uint32_t MAX_TRACK_ASSET_BYTES = 64U * 1024U * 1024U;
+
     std::string get_string(simdjson::dom::element parent, const char *key, const char *fallback) {
         std::string_view value;
         if (parent[key].get(value) != simdjson::SUCCESS)
@@ -33,27 +41,59 @@ namespace {
         return value;
     }
 
-    // An asset is {sha256, size, format, block_id|block_index}. The index is what the block view
-    // needs; a model or spline carries it as block_id, a texture as block_index.
+    bool normalize_sha256(std::string_view sha, std::string *normalized) {
+        if (normalized == nullptr || sha.size() != 64)
+            return false;
+        normalized->clear();
+        normalized->reserve(64);
+        for (unsigned char ch: sha) {
+            if (!std::isxdigit(ch))
+                return false;
+            normalized->push_back(static_cast<char>(std::tolower(ch)));
+        }
+        return true;
+    }
+
+    bool is_sha256(const std::string &sha) {
+        std::string normalized;
+        return normalize_sha256(sha, &normalized) && normalized == sha;
+    }
+
+    // An asset is {sha256, size, format, block_id|block_index}. Indices and lengths are range
+    // checked before narrowing to uint32_t; hashes are canonicalized before being used as paths.
     bool read_asset(simdjson::dom::element element, const char *index_key, TrackAsset *out) {
+        if (out == nullptr)
+            return false;
         std::string_view sha;
-        if (element["sha256"].get(sha) != simdjson::SUCCESS || sha.empty())
+        if (element["sha256"].get(sha) != simdjson::SUCCESS)
+            return false;
+        std::string normalized_sha;
+        if (!normalize_sha256(sha, &normalized_sha))
             return false;
 
         int64_t index = -1;
-        if (element[index_key].get(index) != simdjson::SUCCESS || index < 0)
+        if (element[index_key].get(index) != simdjson::SUCCESS || index < 0 ||
+            static_cast<uint64_t>(index) > UINT32_MAX)
             return false;
 
-        out->sha256 = std::string(sha);
-        out->block_index = (uint32_t) index;
-        out->size = (uint32_t) get_int(element, "size", 0);
+        int64_t declared_size = 0;
+        if (element["size"].get(declared_size) != simdjson::SUCCESS ||
+            declared_size <= 0 || declared_size > MAX_TRACK_ASSET_BYTES)
+            return false;
+
+        out->sha256 = std::move(normalized_sha);
+        out->block_index = static_cast<uint32_t>(index);
+        out->size = static_cast<uint32_t>(declared_size);
         return true;
     }
 
     fs::path blob_path(const std::string &sha256) {
+        // Callers verify a canonical 64-character SHA-256 digest before reaching this helper.
         return fs::path(CONTENT_DIR) / sha256.substr(0, 2) / sha256;
     }
 
+    // The content store names a blob by its hash, so a blob that does not hash to its own name has
+    // been corrupted or swapped. Hashing is done through CNG rather than a vendored implementation.
     // The content store names a blob by its hash, so a blob that does not hash to its own name has
     // been corrupted or swapped. Hashing is done through CNG rather than a vendored implementation.
     bool sha256_hex(const std::vector<uint8_t> &data, std::string *out) {
