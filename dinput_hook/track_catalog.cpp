@@ -22,6 +22,7 @@
 
 #include <simdjson.h>
 
+#include "catalog_http_policy.h"
 #include "config.h"
 #include "track_manifest.h"
 
@@ -203,6 +204,16 @@ namespace {
             parts.dwHostNameLength == 0 || parts.dwHostNameLength >= std::size(host) ||
             parts.dwUrlPathLength >= std::size(path)) {
             *error = "not a usable URL: " + url;
+            return false;
+        }
+
+        // The catalog controls both asset names and their hashes. Plain HTTP to a remote host
+        // would let a network attacker replace the catalog and then supply matching malicious
+        // hashes, so HTTP is reserved for the loopback development server.
+        if (parts.nScheme == INTERNET_SCHEME_HTTP &&
+            !catalog_http_policy::is_loopback_host(
+                std::wstring_view(host, parts.dwHostNameLength))) {
+            *error = "plain HTTP is only permitted for loopback catalog hosts";
             return false;
         }
 
