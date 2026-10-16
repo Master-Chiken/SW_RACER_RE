@@ -275,56 +275,90 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
 std::vector<TrackManifest> track_manifest_ScanAll() {
     std::vector<TrackManifest> manifests;
     std::error_code ec;
-    if (!fs::is_directory(TRACKS_DIR, ec))
+    if (!fs::is_directory(TRACKS_DIR, ec) || ec)
         return manifests;
 
-    for (const auto &entry: fs::directory_iterator(TRACKS_DIR, ec)) {
-        if (!entry.is_directory())
-            continue;
+    std::vector<fs::path> directories;
+    fs::directory_iterator it(TRACKS_DIR, ec);
+    const fs::directory_iterator end;
+    while (!ec && it != end) {
+        std::error_code entry_ec;
+        if (it->is_directory(entry_ec) && !entry_ec)
+            directories.push_back(it->path());
+        it.increment(ec);
+    }
+    std::sort(directories.begin(), directories.end());
 
-        const fs::path path = entry.path() / "track.json";
-        if (!fs::is_regular_file(path, ec))
+    for (const fs::path &directory: directories) {
+        const fs::path path = directory / "track.json";
+        std::error_code file_ec;
+        if (!fs::is_regular_file(path, file_ec) || file_ec)
             continue;
 
         TrackManifest manifest;
         if (!track_manifest_Read(path, &manifest))
             continue;
 
-        fprintf(hook_log, "[track_manifest] %s '%s' by %s: model %u, %s, %u texture(s)\n",
-                manifest.slug.c_str(), manifest.name.c_str(),
-                manifest.author.empty() ? "?" : manifest.author.c_str(), manifest.model.block_index,
-                manifest.has_spline ? "own spline" : "stock spline",
-                (unsigned) manifest.textures.size());
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log,
+                    "[track_manifest] %s '%s' by %s: model %u, %s, %u texture(s)\n",
+                    manifest.slug.c_str(), manifest.name.c_str(),
+                    manifest.author.empty() ? "?" : manifest.author.c_str(),
+                    manifest.model.block_index, manifest.has_spline ? "own spline" : "stock spline",
+                    static_cast<unsigned>(manifest.textures.size()));
+            fflush(hook_log);
+        }
         manifests.push_back(std::move(manifest));
     }
     return manifests;
 }
 
+
 bool track_manifest_ReadAsset(const TrackAsset &asset, std::vector<uint8_t> *out) {
-    const fs::path path = blob_path(asset.sha256);
-    FILE *f = fopen(path.generic_string().c_str(), "rb");
-    if (!f) {
-        fprintf(hook_log, "[track_manifest] content store has no %s\n", asset.sha256.c_str());
-        fflush(hook_log);
+    if (out == nullptr || !is_sha256(asset.sha256) || asset.size == 0 ||
+        asset.size > MAX_TRACK_ASSET_BYTES) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] invalid asset hash/size in manifest\n");
+            fflush(hook_log);
+        }
         return false;
     }
 
-    fseek(f, 0, SEEK_END);
+    const fs::path path = blob_path(asset.sha256);
+    FILE *f = fopen(path.generic_string().c_str(), "rb");
+    if (!f) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] content store has no %s\n", asset.sha256.c_str());
+            fflush(hook_log);
+        }
+        return false;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return false;
+    }
     const long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (asset.size != 0 && (long) asset.size != size) {
-        fprintf(hook_log, "[track_manifest] %s is %ld bytes, the manifest says %u\n",
-                asset.sha256.c_str(), size, asset.size);
-        fflush(hook_log);
+    if (size < 0 || static_cast<uint64_t>(size) > MAX_TRACK_ASSET_BYTES ||
+        static_cast<uint64_t>(size) != asset.size || fseek(f, 0, SEEK_SET) != 0) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has invalid length %ld (manifest expects %u)\n",
+                    asset.sha256.c_str(), size, asset.size);
+            fflush(hook_log);
+        }
         fclose(f);
         return false;
     }
 
-    out->resize(size > 0 ? size : 0);
+    try {
+        out->resize(static_cast<size_t>(size));
+    } catch (...) {
+        fclose(f);
+        return false;
+    }
     const bool complete = out->empty() || fread(out->data(), 1, out->size(), f) == out->size();
-    fclose(f);
-    if (!complete)
+    const int close_result = fclose(f);
+    if (!complete || close_result != 0)
         return false;
 
     if (verified_blobs.count(asset.sha256) != 0)
@@ -332,22 +366,26 @@ bool track_manifest_ReadAsset(const TrackAsset &asset, std::vector<uint8_t> *out
 
     std::string digest;
     if (!sha256_hex(*out, &digest)) {
-        fprintf(hook_log, "[track_manifest] could not hash %s to verify it\n",
-                asset.sha256.c_str());
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] could not hash %s to verify it\n",
+                    asset.sha256.c_str());
+            fflush(hook_log);
+        }
         return false;
     }
-    if (!equals_ignoring_case(digest, asset.sha256)) {
-        fprintf(hook_log, "[track_manifest] %s hashes to %s -- corrupted or not the asset the "
-                          "manifest names\n",
-                asset.sha256.c_str(), digest.c_str());
-        fflush(hook_log);
+    if (digest != asset.sha256) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s hashes to %s -- corrupted or not the asset the manifest names\n",
+                    asset.sha256.c_str(), digest.c_str());
+            fflush(hook_log);
+        }
         return false;
     }
 
     verified_blobs.insert(asset.sha256);
     return true;
 }
+
 
 namespace {
     // Chunks in the content store are the containers extract_raw_asset.py writes: a magic, one or
