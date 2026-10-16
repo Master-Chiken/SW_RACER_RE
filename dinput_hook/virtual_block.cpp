@@ -1,10 +1,14 @@
 #include "virtual_block.h"
 
 #include <algorithm>
+#include <charconv>
+#include <climits>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <string>
+#include <system_error>
 
 #include "hook_helper.h"
 #include "patch.h"
@@ -51,8 +55,13 @@ namespace {
     // The region covering [offset, offset + size), or nullptr when the read spans a boundary or
     // falls in a hole.
     const VirtualRegion *find_region(const VirtualBlockView &view, long offset, size_t size) {
-        // A full layout holds one region per block entry (~1700 for textures), so search rather
-        // than walk.
+        // Reject negative or overflowing ranges before doing signed-long arithmetic.
+        if (offset < 0 || size > static_cast<size_t>(LONG_MAX))
+            return nullptr;
+        const long span = static_cast<long>(size);
+        if (offset > LONG_MAX - span)
+            return nullptr;
+
         auto it = std::upper_bound(view.regions.begin(), view.regions.end(), offset,
                                    [](long value, const VirtualRegion &region) {
                                        return value < region.virtual_offset;
@@ -61,7 +70,10 @@ namespace {
             return nullptr;
 
         --it;
-        if (offset + (long) size <= it->virtual_offset + (long) it->size)
+        const long region_size = static_cast<long>(it->size);
+        if (offset < it->virtual_offset || it->virtual_offset > LONG_MAX - region_size)
+            return nullptr;
+        if (offset + span <= it->virtual_offset + region_size)
             return &*it;
         return nullptr;
     }
@@ -107,36 +119,101 @@ namespace {
 
     bool read_source_entries(swrLoader_TYPE type, const char *path,
                              std::vector<SourceEntry> *entries) {
+        if (entries == nullptr || path == nullptr)
+            return false;
+        const int words = table_words(type);
+        if (words == 0)
+            return false;
+
         FILE *f = fopen(path, "rb");
         if (!f)
             return false;
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            return false;
+        }
+        const long file_length = ftell(f);
+        if (file_length < 4 || fseek(f, 0, SEEK_SET) != 0) {
+            fclose(f);
+            return false;
+        }
 
-        const int words = table_words(type);
         uint8_t count_bytes[4] = {};
         if (fread(count_bytes, 1, sizeof(count_bytes), f) != sizeof(count_bytes)) {
             fclose(f);
             return false;
         }
-        const uint32_t count = (uint32_t) count_bytes[0] << 24 | (uint32_t) count_bytes[1] << 16 |
-            (uint32_t) count_bytes[2] << 8 | count_bytes[3];
+        const uint32_t count = (uint32_t) count_bytes[0] << 24 |
+                               (uint32_t) count_bytes[1] << 16 |
+                               (uint32_t) count_bytes[2] << 8 |
+                               (uint32_t) count_bytes[3];
 
-        // The table plus its terminating slot.
-        std::vector<uint8_t> table(4u * words * (count + 1));
-        if (table.empty() || fread(table.data(), 1, table.size(), f) != table.size()) {
+        // Stock blocks have only thousands of entries. Cap malformed counts before allocating
+        // the table or the entry vector, then verify the complete offset table fits in the file.
+        constexpr uint32_t MAX_BLOCK_ENTRIES = 1'000'000;
+        if (count > MAX_BLOCK_ENTRIES) {
+            fclose(f);
+            return false;
+        }
+        const uint64_t table_bytes64 = 4ULL * static_cast<uint64_t>(words) *
+                                       (static_cast<uint64_t>(count) + 1ULL);
+        const uint64_t table_end64 = 4ULL + table_bytes64;
+        if (table_bytes64 > std::numeric_limits<size_t>::max() ||
+            table_end64 > static_cast<uint64_t>(file_length)) {
+            fclose(f);
+            return false;
+        }
+
+        std::vector<uint8_t> table;
+        try {
+            table.resize(static_cast<size_t>(table_bytes64));
+        } catch (...) {
+            fclose(f);
+            return false;
+        }
+        if (fread(table.data(), 1, table.size(), f) != table.size()) {
             fclose(f);
             return false;
         }
         fclose(f);
 
-        entries->resize(count);
+        const uint32_t table_end = static_cast<uint32_t>(table_end64);
+        entries->clear();
+        try {
+            entries->resize(count);
+        } catch (...) {
+            return false;
+        }
+
         for (uint32_t i = 0; i < count; i++) {
-            const uint32_t first = read_be32(table, 4u * words * i);
-            const uint32_t next_first = read_be32(table, 4u * words * (i + 1));
+            const size_t table_offset = 4u * static_cast<size_t>(words) * i;
+            const uint32_t first = read_be32(table, table_offset);
+            const uint32_t next_first =
+                read_be32(table, 4u * static_cast<size_t>(words) * (i + 1u));
             uint32_t split = 0;
+
+            if (first < table_end || next_first < first ||
+                next_first > static_cast<uint64_t>(file_length)) {
+                entries->clear();
+                return false;
+            }
+
             if (words == 2) {
-                const uint32_t second = read_be32(table, 4u * words * i + 4);
-                // A texture with no palette stores 0; a model's second section always follows.
-                split = second != 0 ? second - first : 0;
+                const uint32_t second = read_be32(table, table_offset + 4);
+                if (type == swrLoader_TYPE_MODEL_BLOCK) {
+                    if (next_first != first && (second <= first || second > next_first)) {
+                        entries->clear();
+                        return false;
+                    }
+                    split = second >= first ? second - first : 0;
+                } else {
+                    // For textures, palette offset zero means that no palette is present.
+                    if (second != 0 && (second < first || second > next_first)) {
+                        entries->clear();
+                        return false;
+                    }
+                    split = second != 0 ? second - first : 0;
+                }
             }
             (*entries)[i] = {first, next_first, split};
         }
@@ -152,73 +229,116 @@ bool virtual_block_BuildView(swrLoader_TYPE type, const char *source_path,
 
     std::vector<SourceEntry> source;
     if (!read_source_entries(type, source_path, &source)) {
-        fprintf(hook_log, "[virtual_block] cannot read source block '%s'\n", source_path);
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log, "[virtual_block] cannot read or validate source block '%s'\n",
+                    source_path);
+            fflush(hook_log);
+        }
         return false;
     }
 
-    uint32_t count = (uint32_t) source.size();
-    for (const VirtualOverride &override_entry: overrides) {
-        if (override_entry.payload.empty() || override_entry.split > override_entry.payload.size()) {
-            fprintf(hook_log, "[virtual_block] malformed override for entry %u\n",
-                    override_entry.index);
-            fflush(hook_log);
+    constexpr uint32_t MAX_BLOCK_ENTRIES = 1'000'000;
+    std::sort(overrides.begin(), overrides.end(),
+              [](const VirtualOverride &a, const VirtualOverride &b) {
+                  return a.index < b.index;
+              });
+
+    uint64_t count64 = source.size();
+    uint32_t previous_index = 0;
+    bool have_previous = false;
+    for (const VirtualOverride &entry: overrides) {
+        if (entry.index == UINT32_MAX || entry.payload.empty() ||
+            entry.payload.size() > UINT32_MAX || entry.split > entry.payload.size()) {
+            if (hook_log) {
+                fprintf(hook_log, "[virtual_block] malformed override for entry %u\n", entry.index);
+                fflush(hook_log);
+            }
             return false;
         }
-        count = count > override_entry.index + 1 ? count : override_entry.index + 1;
+        if (have_previous && entry.index == previous_index) {
+            if (hook_log) {
+                fprintf(hook_log, "[virtual_block] duplicate override index %u\n", entry.index);
+                fflush(hook_log);
+            }
+            return false;
+        }
+        have_previous = true;
+        previous_index = entry.index;
+
+        if (type == swrLoader_TYPE_MODEL_BLOCK &&
+            (entry.split == 0 || entry.split >= entry.payload.size()))
+            return false;
+        if (type == swrLoader_TYPE_TEXTURE_BLOCK &&
+            entry.split >= entry.payload.size() && entry.split != 0)
+            return false;
+        if (type == swrLoader_TYPE_SPLINE_BLOCK && entry.split != 0)
+            return false;
+
+        count64 = std::max(count64, static_cast<uint64_t>(entry.index) + 1ULL);
     }
+
+    if (count64 > MAX_BLOCK_ENTRIES)
+        return false;
+    const uint64_t header_size64 =
+        4ULL + 4ULL * static_cast<uint64_t>(words) * (count64 + 1ULL);
+    if (header_size64 > UINT32_MAX || header_size64 > static_cast<uint64_t>(LONG_MAX) ||
+        header_size64 > std::numeric_limits<size_t>::max())
+        return false;
 
     VirtualBlockView view;
     view.source_path = source_path;
     view.owned.reserve(overrides.size());
-
-    // Payloads start past the table; the whole table is synthesized, so nothing depends on the
-    // source block's own header size.
-    const size_t header_size = 4u + 4u * words * (count + 1);
-    view.header.assign(header_size, 0);
+    const uint32_t count = static_cast<uint32_t>(count64);
+    view.header.assign(static_cast<size_t>(header_size64), 0);
+    view.regions.reserve(static_cast<size_t>(count));
     write_be32(view.header, 0, count);
 
-    long cursor = (long) header_size;
+    uint64_t cursor = header_size64;
+    size_t override_index = 0;
     for (uint32_t i = 0; i < count; i++) {
         VirtualOverride *replacement = nullptr;
-        for (VirtualOverride &candidate: overrides) {
-            if (candidate.index == i) {
-                replacement = &candidate;
-                break;
-            }
-        }
+        if (override_index < overrides.size() && overrides[override_index].index == i)
+            replacement = &overrides[override_index++];
 
-        uint32_t size = 0;
+        uint64_t size = 0;
         uint32_t split = 0;
         if (replacement != nullptr) {
             split = replacement->split;
+            size = replacement->payload.size();
+            if (cursor + size > UINT32_MAX || cursor + size > static_cast<uint64_t>(LONG_MAX))
+                return false;
             view.owned.push_back(std::move(replacement->payload));
-            size = (uint32_t) view.owned.back().size();
-            view.regions.push_back({cursor, size, view.owned.back().data(), 0});
+            view.regions.push_back({static_cast<long>(cursor), static_cast<uint32_t>(size),
+                                    view.owned.back().data(), 0});
         } else if (i < source.size() && source[i].end > source[i].begin) {
-            size = source[i].end - source[i].begin;
+            size = static_cast<uint64_t>(source[i].end) - source[i].begin;
+            if (cursor + size > UINT32_MAX || cursor + size > static_cast<uint64_t>(LONG_MAX))
+                return false;
             split = source[i].split;
-            view.regions.push_back({cursor, size, nullptr, (long) source[i].begin});
-        } else {
-            // An index past the source block that nothing overrides: leave it empty rather than
-            // pointing the game at bytes that do not exist.
-            write_be32(view.header, 4u + 4u * words * i, (uint32_t) cursor);
-            if (words == 2)
-                write_be32(view.header, 4u + 4u * words * i + 4, 0);
-            continue;
+            view.regions.push_back({static_cast<long>(cursor), static_cast<uint32_t>(size),
+                                    nullptr, static_cast<long>(source[i].begin)});
         }
 
-        write_be32(view.header, 4u + 4u * words * i, (uint32_t) cursor);
-        if (words == 2)
-            write_be32(view.header, 4u + 4u * words * i + 4, split != 0 ? (uint32_t) cursor + split : 0);
+        write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * i,
+                   static_cast<uint32_t>(cursor));
+        if (words == 2) {
+            const uint32_t second = size != 0 && split != 0
+                                        ? static_cast<uint32_t>(cursor + split)
+                                        : 0;
+            write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * i + 4, second);
+        }
         cursor += size;
     }
-    // Terminating slot: the last entry ends here.
-    write_be32(view.header, 4u + 4u * words * count, (uint32_t) cursor);
+
+    if (cursor > UINT32_MAX || cursor > static_cast<uint64_t>(LONG_MAX))
+        return false;
+    write_be32(view.header, 4u + 4u * static_cast<size_t>(words) * count,
+               static_cast<uint32_t>(cursor));
 
     *out = std::move(view);
     return true;
 }
+
 
 void virtual_block_Install(swrLoader_TYPE type, VirtualBlockView view) {
     if (!valid_type(type))
@@ -296,6 +416,8 @@ size_t swrLoader_ReadAt_delta(swrLoader_TYPE type, long offset, void *dst, size_
         return hook_call_original(swrLoader_ReadAt, type, offset, dst, size);
 
     const VirtualBlockView &view = *views[type];
+    if (dst == nullptr && size != 0)
+        return 0;
 
     // A view's fall-through offsets only mean anything in the block it was built from, and a
     // custom track swaps the block path out from under us. Serve the real file instead.
@@ -305,7 +427,9 @@ size_t swrLoader_ReadAt_delta(swrLoader_TYPE type, long offset, void *dst, size_
         return hook_call_original(swrLoader_ReadAt, type, offset, dst, size);
     }
 
-    if (offset >= 0 && offset + (long) size <= (long) view.header.size()) {
+    if (offset >= 0 && size <= static_cast<size_t>(LONG_MAX) &&
+        offset <= LONG_MAX - static_cast<long>(size) &&
+        offset + static_cast<long>(size) <= static_cast<long>(view.header.size())) {
         memcpy(dst, view.header.data() + offset, size);
         stats[type].from_header++;
         return 1;// the original returns fread's element count
@@ -363,37 +487,93 @@ namespace {
     // A discrete chunk as extract_raw_asset.py writes it: magic, one or two little-endian sizes,
     // then the payload sections verbatim. The container tells us where an entry's second section
     // starts, which is what the block's table has to encode.
-    bool read_chunk(const std::filesystem::path &path, uint32_t index, VirtualOverride *out) {
-        FILE *f = fopen(path.generic_string().c_str(), "rb");
+    constexpr uint64_t MAX_CHUNK_BYTES = 64ULL * 1024ULL * 1024ULL;
+
+    uint32_t read_le32(const uint8_t *p) {
+        return static_cast<uint32_t>(p[0]) |
+               (static_cast<uint32_t>(p[1]) << 8) |
+               (static_cast<uint32_t>(p[2]) << 16) |
+               (static_cast<uint32_t>(p[3]) << 24);
+    }
+
+    bool read_chunk(const std::filesystem::path &path, swrLoader_TYPE type,
+                    uint32_t index, VirtualOverride *out) {
+        if (out == nullptr)
+            return false;
+        const char *expected_magic = nullptr;
+        bool two_sections = false;
+        switch (type) {
+            case swrLoader_TYPE_MODEL_BLOCK:
+                expected_magic = "RAWM";
+                two_sections = true;
+                break;
+            case swrLoader_TYPE_SPLINE_BLOCK:
+                expected_magic = "RAWS";
+                break;
+            case swrLoader_TYPE_TEXTURE_BLOCK:
+                expected_magic = "RAWT";
+                two_sections = true;
+                break;
+            default:
+                return false;
+        }
+
+        FILE *f = fopen(path.string().c_str(), "rb");
         if (!f)
             return false;
-
-        char magic[4] = {};
-        uint32_t first = 0;
-        uint32_t second = 0;
-        if (fread(magic, 1, sizeof(magic), f) != sizeof(magic) || fread(&first, 4, 1, f) != 1) {
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            return false;
+        }
+        const long file_length = ftell(f);
+        if (file_length < 8 || static_cast<uint64_t>(file_length) > MAX_CHUNK_BYTES ||
+            fseek(f, 0, SEEK_SET) != 0) {
             fclose(f);
             return false;
         }
 
-        const bool two_sections = memcmp(magic, "RAWM", 4) == 0 || memcmp(magic, "RAWT", 4) == 0;
-        if (two_sections && fread(&second, 4, 1, f) != 1) {
+        uint8_t header[12] = {};
+        const size_t header_size = two_sections ? 12 : 8;
+        if (fread(header, 1, header_size, f) != header_size ||
+            memcmp(header, expected_magic, 4) != 0) {
             fclose(f);
             return false;
         }
-        if (!two_sections && memcmp(magic, "RAWS", 4) != 0) {
+        const uint32_t first = read_le32(header + 4);
+        const uint32_t second = two_sections ? read_le32(header + 8) : 0;
+        const uint64_t payload_size = static_cast<uint64_t>(first) + second;
+        if (payload_size == 0 || payload_size + header_size != static_cast<uint64_t>(file_length) ||
+            payload_size > MAX_CHUNK_BYTES - header_size) {
+            fclose(f);
+            return false;
+        }
+        if (type == swrLoader_TYPE_MODEL_BLOCK &&
+            (first == 0 || first % 4 != 0 || second < 4 || second % 4 != 0)) {
+            fclose(f);
+            return false;
+        }
+        if (type == swrLoader_TYPE_SPLINE_BLOCK && (first < 4 || first % 4 != 0)) {
+            fclose(f);
+            return false;
+        }
+        if (type == swrLoader_TYPE_TEXTURE_BLOCK &&
+            (first == 0 || first % 4 != 0 || (second % 4) != 0)) {
             fclose(f);
             return false;
         }
 
-        std::vector<uint8_t> payload(first + second);
-        const bool complete =
-            payload.empty() || fread(payload.data(), 1, payload.size(), f) == payload.size();
-        fclose(f);
-        if (!complete || payload.empty())
+        std::vector<uint8_t> payload;
+        try {
+            payload.resize(static_cast<size_t>(payload_size));
+        } catch (...) {
+            fclose(f);
+            return false;
+        }
+        const bool complete = fread(payload.data(), 1, payload.size(), f) == payload.size();
+        const int close_status = fclose(f);
+        if (!complete || close_status != 0)
             return false;
 
-        // RAWT with no palette has one section; RAWM always has two (mask then model).
         *out = {index, std::move(payload), second != 0 ? first : 0u};
         return true;
     }
@@ -404,32 +584,73 @@ namespace {
         const std::filesystem::path folder =
             std::filesystem::path("./assets/replacement_blocks") / type_name(type);
         std::error_code ec;
-        if (!std::filesystem::is_directory(folder, ec))
+        if (!std::filesystem::is_directory(folder, ec) || ec)
             return overrides;
 
-        for (const auto &entry: std::filesystem::directory_iterator(folder, ec)) {
-            if (!entry.is_regular_file())
+        std::vector<std::filesystem::path> files;
+        std::filesystem::directory_iterator it(folder, ec);
+        const std::filesystem::directory_iterator end;
+        while (!ec && it != end) {
+            std::error_code entry_ec;
+            if (it->is_regular_file(entry_ec) && !entry_ec &&
+                it->path().extension() == ".bin") {
+                files.push_back(it->path());
+            }
+            it.increment(ec);
+        }
+        std::sort(files.begin(), files.end(),
+                  [](const auto &a, const auto &b) {
+                      return a.filename().generic_string() < b.filename().generic_string();
+                  });
+
+        std::map<uint32_t, std::filesystem::path> indexed_files;
+        for (const auto &path: files) {
+            const std::string stem = path.stem().generic_string();
+            if (stem.empty() ||
+                stem.find_first_not_of("0123456789") != std::string::npos)
                 continue;
 
-            const std::string stem = entry.path().stem().generic_string();
-            if (stem.empty() || stem.find_first_not_of("0123456789") != std::string::npos)
-                continue;
-
-            VirtualOverride loaded;
-            if (!read_chunk(entry.path(), (uint32_t) std::stoul(stem), &loaded)) {
-                fprintf(hook_log, "[virtual_block] ignoring %s: not a readable chunk\n",
-                        entry.path().generic_string().c_str());
-                fflush(hook_log);
+            uint32_t index = 0;
+            const auto parsed = std::from_chars(stem.data(), stem.data() + stem.size(), index, 10);
+            if (parsed.ec != std::errc{} || parsed.ptr != stem.data() + stem.size()) {
+                if (hook_log) {
+                    fprintf(hook_log, "[virtual_block] ignoring replacement with invalid index: %s\n",
+                            path.generic_string().c_str());
+                    fflush(hook_log);
+                }
                 continue;
             }
-            fprintf(hook_log, "[virtual_block] %s entry %u <- %s (%u bytes, split %u)\n",
-                    type_name(type), loaded.index, entry.path().filename().generic_string().c_str(),
-                    (unsigned) loaded.payload.size(), loaded.split);
+            const auto inserted = indexed_files.emplace(index, path);
+            if (!inserted.second && hook_log) {
+                fprintf(hook_log,
+                        "[virtual_block] duplicate replacement index %u; keeping %s and ignoring %s\n",
+                        index, inserted.first->second.generic_string().c_str(),
+                        path.generic_string().c_str());
+                fflush(hook_log);
+            }
+        }
+
+        for (const auto &indexed: indexed_files) {
+            VirtualOverride loaded;
+            if (!read_chunk(indexed.second, type, indexed.first, &loaded)) {
+                if (hook_log) {
+                    fprintf(hook_log, "[virtual_block] ignoring %s: invalid discrete chunk\n",
+                            indexed.second.generic_string().c_str());
+                    fflush(hook_log);
+                }
+                continue;
+            }
+            if (hook_log) {
+                fprintf(hook_log, "[virtual_block] %s entry %u <- %s (%u bytes, split %u)\n",
+                        type_name(type), loaded.index, indexed.second.filename().generic_string().c_str(),
+                        (unsigned) loaded.payload.size(), loaded.split);
+                fflush(hook_log);
+            }
             overrides.push_back(std::move(loaded));
         }
-        fflush(hook_log);
         return overrides;
     }
+
 }
 
 // Install a view per block type for whatever discrete chunks are on disk. Runs before the game
