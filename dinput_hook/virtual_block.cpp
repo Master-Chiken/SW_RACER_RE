@@ -438,6 +438,10 @@ namespace {
     std::string last_open_path[NUM_BLOCK_TYPES];
 }
 
+const char **virtual_block_SourcePath(swrLoader_TYPE type) {
+    return block_path(type);
+}
+
 // 0x0042d680
 void swrLoader_OpenBlock_delta(swrLoader_TYPE type) {
     // The game opens a block only when its handle is NULL, so a path swap while the handle is still
