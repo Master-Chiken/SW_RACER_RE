@@ -75,7 +75,7 @@ namespace {
                                              text.c_str(), (int) text.size(), nullptr, 0);
         if (size <= 0)
             return std::wstring();
-        std::wstring wide(size, L'\\0');
+        std::wstring wide(size, L'\0');
         if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.c_str(),
                                 (int) text.size(), wide.data(), size) != size)
             return std::wstring();
@@ -197,7 +197,7 @@ namespace {
     bool http_get(const std::string &url, std::vector<uint8_t> *out, std::string *error) {
         if (out == nullptr || error == nullptr ||
             (url.rfind("https://", 0) != 0 && url.rfind("http://", 0) != 0) ||
-            url.find_first_of("\\r\\n") != std::string::npos) {
+            url.find_first_of("\r\n") != std::string::npos) {
             if (error)
                 *error = "only valid HTTP(S) URLs are supported";
             return false;
@@ -768,7 +768,7 @@ const std::string &track_catalog_Url() {
                                                "https://bottosjunkyard.com/api/v1/customtracks");
         while (!value.empty() && value.back() == '/')
             value.pop_back();
-        if (value.size() > 1024 || value.find_first_of("?#\\r\\n") != std::string::npos ||
+        if (value.size() > 1024 || value.find_first_of("?#\r\n") != std::string::npos ||
             (value.rfind("https://", 0) != 0 && value.rfind("http://", 0) != 0))
             return std::string("https://bottosjunkyard.com/api/v1/customtracks");
         return value;
