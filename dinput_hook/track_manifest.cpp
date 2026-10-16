@@ -139,28 +139,46 @@ namespace {
 }
 
 bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
+    if (out == nullptr)
+        return false;
+
     simdjson::dom::parser parser;
     simdjson::dom::element root;
     if (parser.load(path.generic_string()).get(root) != simdjson::SUCCESS) {
-        fprintf(hook_log, "[track_manifest] %s is not readable JSON\n",
-                path.generic_string().c_str());
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s is not readable JSON\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
+    }
+
+    const int64_t schema = get_int(root, "schema", 0);
+    if (schema != SUPPORTED_SCHEMA) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s declares unsupported schema %lld\n",
+                    path.generic_string().c_str(), static_cast<long long>(schema));
+            fflush(hook_log);
+        }
         return false;
     }
 
     TrackManifest manifest = {};
-    manifest.schema = (int) get_int(root, "schema", 0);
-    if (manifest.schema != SUPPORTED_SCHEMA) {
-        fprintf(hook_log, "[track_manifest] %s declares schema %d, this build reads %d\n",
-                path.generic_string().c_str(), manifest.schema, SUPPORTED_SCHEMA);
-        fflush(hook_log);
-        return false;
-    }
-
+    manifest.schema = SUPPORTED_SCHEMA;
     manifest.slug = get_string(root, "slug", "");
     manifest.version = get_string(root, "version", "");
     manifest.name = get_string(root, "name", manifest.slug.c_str());
     manifest.content_hash = get_string(root, "content_hash", "");
+    if (manifest.slug.empty() || manifest.slug.size() > 128 ||
+        manifest.slug.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789-_") != std::string::npos) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has an invalid or empty slug\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
+    }
+
     simdjson::dom::element author;
     if (root["author"].get(author) == simdjson::SUCCESS)
         manifest.author = get_string(author, "name", "");
@@ -168,34 +186,85 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
     simdjson::dom::element model;
     if (root["model"].get(model) != simdjson::SUCCESS ||
         !read_asset(model, "block_id", &manifest.model)) {
-        fprintf(hook_log, "[track_manifest] %s has no usable model asset\n",
-                path.generic_string().c_str());
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has no usable model asset\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
         return false;
     }
 
     simdjson::dom::element spline;
-    manifest.has_spline = root["spline"].get(spline) == simdjson::SUCCESS &&
-        read_asset(spline, "block_id", &manifest.spline);
+    const simdjson::error_code spline_error = root["spline"].get(spline);
+    if (spline_error == simdjson::SUCCESS) {
+        if (!read_asset(spline, "block_id", &manifest.spline)) {
+            if (hook_log) {
+                fprintf(hook_log, "[track_manifest] %s has an invalid spline asset\n",
+                        path.generic_string().c_str());
+                fflush(hook_log);
+            }
+            return false;
+        }
+        manifest.has_spline = true;
+    } else if (spline_error != simdjson::NO_SUCH_FIELD) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has a malformed spline field\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
+    }
 
     simdjson::dom::array textures;
-    if (root["textures"].get(textures) == simdjson::SUCCESS) {
+    const simdjson::error_code textures_error = root["textures"].get(textures);
+    if (textures_error == simdjson::SUCCESS) {
         for (simdjson::dom::element texture: textures) {
             TrackAsset asset;
-            if (read_asset(texture, "block_index", &asset))
-                manifest.textures.push_back(asset);
+            if (!read_asset(texture, "block_index", &asset)) {
+                if (hook_log) {
+                    fprintf(hook_log, "[track_manifest] %s contains an invalid texture asset\n",
+                            path.generic_string().c_str());
+                    fflush(hook_log);
+                }
+                return false;
+            }
+            manifest.textures.push_back(std::move(asset));
         }
+    } else if (textures_error != simdjson::NO_SUCH_FIELD) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has a malformed textures field\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
     }
 
     manifest.placement = {0, 0, 0, -1};
     simdjson::dom::element placement;
-    if (root["placement"].get(placement) == simdjson::SUCCESS) {
-        manifest.placement.planet = (int) get_int(placement, "planet", 0);
-        manifest.placement.planet_track_number =
-            (int) get_int(placement, "planet_track_number", 0);
-        manifest.placement.favorite_pilot = (int) get_int(placement, "favorite_pilot", 0);
-        manifest.placement.overrides_stock_slot =
-            (int) get_int(placement, "overrides_stock_slot", -1);
+    const simdjson::error_code placement_error = root["placement"].get(placement);
+    if (placement_error == simdjson::SUCCESS) {
+        const int64_t planet = get_int(placement, "planet", 0);
+        const int64_t planet_track = get_int(placement, "planet_track_number", 0);
+        const int64_t favorite = get_int(placement, "favorite_pilot", 0);
+        const int64_t stock_slot = get_int(placement, "overrides_stock_slot", -1);
+        if (planet < 0 || planet >= 8 || planet_track < 0 || planet_track > 255 ||
+            favorite < 0 || favorite >= 25 || stock_slot < -1 || stock_slot >= 25) {
+            if (hook_log) {
+                fprintf(hook_log, "[track_manifest] %s has an out-of-range placement value\n",
+                        path.generic_string().c_str());
+                fflush(hook_log);
+            }
+            return false;
+        }
+        manifest.placement = {static_cast<int>(planet), static_cast<int>(planet_track),
+                              static_cast<int>(favorite), static_cast<int>(stock_slot)};
+    } else if (placement_error != simdjson::NO_SUCH_FIELD) {
+        if (hook_log) {
+            fprintf(hook_log, "[track_manifest] %s has a malformed placement field\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
     }
 
     manifest.directory = path.parent_path();
