@@ -233,10 +233,10 @@ namespace {
                                                    WINHTTP_NO_REFERER,
                                                    WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
             if (request) {
-                // WinHTTP follows redirects by default. A valid HTTPS catalog could otherwise
-                // redirect to plain HTTP, bypassing the initial host/scheme check above. This
-                // client fetches immutable catalog/blob URLs, so redirects are unnecessary;
-                // reject them instead of risking an HTTPS downgrade.
+                // Automatic redirects change the destination host/scheme, while the URL policy
+                // above validates only the configured endpoint. Catalog and blob URLs are stable
+                // content-addressed resources and do not need redirects, so reject them explicitly
+                // rather than rely on WinHTTP's defaults or contact a second origin.
                 DWORD disabled_features = WINHTTP_DISABLE_REDIRECTS;
                 if (!WinHttpSetOption(request, WINHTTP_OPTION_DISABLE_FEATURE,
                                       &disabled_features, sizeof(disabled_features))) {
