@@ -8,7 +8,7 @@ Pods also need a specific structure: Three nodes named `cockpit`, `engineR` and 
 This uses dll injection from the `dinput.dll` custom dll, which will replace some of the original game functions with our own.
 If you want to uninstall this mod, remove `dinput.dll` and the `assets/` directory.
 
-This mod also output some debug log in the `hook_log.txt` file. If your game crashes unexpectedly, the informations contained in it can often be used to understand what is happenning.
+This mod also outputs debug logs to `hook.log`. If your game crashes unexpectedly, the information in this file can often help diagnose what happened.
 
 # Building
 Instructions to compile on windows
