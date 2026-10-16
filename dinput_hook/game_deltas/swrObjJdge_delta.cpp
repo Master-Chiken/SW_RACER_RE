@@ -5,6 +5,7 @@
 #include "swrRace_delta.h"
 #include "swrSpline_delta.h"// spline_cursor_has_usable_spline (fly-by gate)
 #include "swrControl_delta.h"// swrControl_RumbleOnTrigger (earthquake rumble; no-op if rumble disabled)
+#include "../track_registry.h" // track_registry_ApplyForCurrentTrack
 
 extern "C" {
 #include <Swr/swrObj.h>
@@ -89,6 +90,7 @@ unsigned int swrObjJdge_InitTrack_delta(swrObjJdge *judge, swrScore *scores) {
     // Breadcrumb the race so a crash report names the track. The judge's model/spline ids are
     // only valid after the original has run; before it they hold the previous track's.
     crash_logger_stage("race: init track");
+    track_registry_ApplyForCurrentTrack();
     // Drop cable nodes from the previous track so freed pointers aren't matched against new meshes.
     swrRace_ClearCableBends();
     const unsigned int x = hook_call_original(swrObjJdge_InitTrack, judge, scores);
