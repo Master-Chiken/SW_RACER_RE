@@ -188,6 +188,26 @@ class RawModelValidatorTests(unittest.TestCase):
         self.assertEqual(extract_raw_asset.payloads("texture", second), [b"EFGH", b""])
         self.assertEqual(extract_raw_asset.verify_block("texture", block), 0)
 
+    def test_model_multi_entry_offsets_roundtrip(self) -> None:
+        header = struct.pack(">I5I", 2, 24, 28, 32, 36, 40)
+        first_entry = bytes(4) + b"Modl"
+        second_entry = bytes([1, 2, 3, 4]) + b"Mod2"
+        block = header + first_entry + second_entry
+
+        first = extract_raw_asset.carve("model", block, 0)
+        second = extract_raw_asset.carve("model", block, 1)
+        self.assertEqual(extract_raw_asset.payloads("model", first), [bytes(4), b"Modl"])
+        self.assertEqual(extract_raw_asset.payloads("model", second), [bytes([1, 2, 3, 4]), b"Mod2"])
+        self.assertEqual(extract_raw_asset.verify_block("model", block), 0)
+
+    def test_spline_multi_entry_offsets_roundtrip(self) -> None:
+        block = struct.pack(">IIII", 2, 16, 20, 24) + b"SP01SP02"
+        first = extract_raw_asset.carve("spline", block, 0)
+        second = extract_raw_asset.carve("spline", block, 1)
+        self.assertEqual(extract_raw_asset.payloads("spline", first), [b"SP01"])
+        self.assertEqual(extract_raw_asset.payloads("spline", second), [b"SP02"])
+        self.assertEqual(extract_raw_asset.verify_block("spline", block), 0)
+
     def test_all_extractors_reject_out_of_range_ids(self) -> None:
         model = struct.pack(">IIII", 1, 16, 20, 24) + bytes(8)
         spline = struct.pack(">III", 1, 12, 16) + b"ABCD"
