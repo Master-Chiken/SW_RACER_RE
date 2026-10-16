@@ -480,7 +480,8 @@ size_t swrLoader_ReadAt_delta(swrLoader_TYPE type, long offset, void *dst, size_
     // A view's fall-through offsets only mean anything in the block it was built from, and a
     // custom track swaps the block path out from under us. Serve the real file instead.
     const char **path = block_path(type);
-    if (path != nullptr && *path != nullptr && view.source_path != *path) {
+    if (path != nullptr &&
+        !virtual_block_policy::source_path_matches(view.source_path.c_str(), *path)) {
         stats[type].wrong_block++;
         return hook_call_original(swrLoader_ReadAt, type, offset, dst, size);
     }
