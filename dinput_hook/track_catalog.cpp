@@ -17,6 +17,7 @@
 
 #include <windows.h>
 #include <winhttp.h>
+#include <bcrypt.h>
 
 #include <simdjson.h>
 
@@ -100,7 +101,7 @@ namespace {
 
         uint8_t digest[32] = {};
         BCRYPT_HASH_HANDLE hash = nullptr;
-        bool ok = BCRYPT_SUCCESS(BCryptCreateHash(&hash, algorithm, nullptr, 0,
+        bool ok = BCRYPT_SUCCESS(BCryptCreateHash(algorithm, &hash, nullptr, 0,
                                                   nullptr, 0, 0));
         if (ok) {
             ok = BCRYPT_SUCCESS(BCryptHashData(hash, const_cast<PUCHAR>(data.data()),
@@ -121,8 +122,6 @@ namespace {
         }
         return true;
     }
-
-    bool body_matches_asset(const std::vector<uint8_t> &body, const WantedAsset &asset);
 
     bool read_file_limited(const fs::path &path, uint64_t max_bytes,
                            std::vector<uint8_t> *out) {
