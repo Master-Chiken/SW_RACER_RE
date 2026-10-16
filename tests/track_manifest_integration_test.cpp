@@ -4,10 +4,13 @@
 #include <windows.h>
 #include <bcrypt.h>
 
+#include <climits>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
