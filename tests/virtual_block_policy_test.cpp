@@ -67,6 +67,16 @@ int main() {
     check(!source_texture_split_valid(16, 15, 40), "texture palette before pixels is rejected");
     check(!source_texture_split_valid(16, 41, 40), "texture palette past entry end is rejected");
 
+    check(range_within(4, 4, 4, 8), "read range exactly matching its bounds is accepted");
+    check(range_within(5, 3, 4, 8), "read range fully inside its bounds is accepted");
+    check(range_within(8, 0, 4, 8), "empty read at the end boundary is accepted");
+    check(!range_within(7, 2, 4, 8), "read range crossing the end boundary is rejected");
+    check(!range_within(3, 1, 4, 8), "read range starting before its bounds is rejected");
+    check(!range_within(4, 1, 8, 4), "read range rejects reversed bounds");
+    check(!range_within(std::numeric_limits<uint64_t>::max() - 1, 4, 0,
+                        std::numeric_limits<uint64_t>::max()),
+          "read range rejects overflow without adding offset and size");
+
     check(source_path_matches("data/lev01/out_modelblock.bin",
                               "data/lev01/out_modelblock.bin"),
           "virtual view accepts the exact source archive path");
