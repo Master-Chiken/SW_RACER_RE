@@ -15,6 +15,12 @@ You can find releases of this mod [here](https://github.com/tim-tim707/SW_RACER_
 # Community
 All this work, discussion and collaboration is done in the official [Discord server](https://discord.com/servers/star-wars-episode-i-racer-441839750555369474)
 
+## Want to contribute?
+
+You can help without working on the whole project. Start with the [contributor guide](CONTRIBUTING.md), then open a focused issue for a function or symbol analysis, a reproducible bug, a test, or a documentation/tooling improvement. Use the issue templates to make the task easy to review, and coordinate larger reverse-engineering efforts in the [official Discord](https://discord.com/servers/star-wars-episode-i-racer-441839750555369474).
+
+Please do not submit the original game executable or proprietary game assets.
+
 # Development
 ## Progress
 The progress here lists the functions which have been analysed (not necessarily re-implemented)
