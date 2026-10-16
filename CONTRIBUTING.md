@@ -15,12 +15,15 @@ Contributors are welcome to work on substantial changes, not just beginner tasks
 
 You do not need permission for every small experiment in your own fork or feature branch. Coordinate before large architectural changes or work likely to overlap with someone else's task. The goal of review is to protect the official branch and keep changes understandable—not to prevent contributors from doing meaningful work.
 
-## Before starting
+## Contribution workflow
 
-1. Read the project [README](README.md) and `NOTES.md`.
-2. Search the source tree before opening a new task, to avoid duplicating existing work.
+1. Read the project [README](README.md), [Governance](GOVERNANCE.md), and [Access Control](ACCESS_CONTROL.md), plus `NOTES.md`.
+2. Search the source tree and existing pull requests before starting, to avoid duplicating work.
 3. For a substantial reverse-engineering task, open an issue or discuss it in the [official Discord](https://discord.com/servers/star-wars-episode-i-racer-441839750555369474) before spending time on it.
-4. Keep each pull request reviewable. A substantial feature is welcome; split it into dependent pull requests only when that makes implementation, testing, or review clearer.
+4. Create a branch in your own fork and work there. This is the normal workflow and does not require direct write access to the official repository.
+5. Open a draft pull request early when feedback on the approach would help; mark it ready when it is ready for full review.
+6. The Project Owner reviews and personally merges changes into the official default branch. Contributors should not expect direct pushes or self-merges into the official branch.
+7. Keep each pull request reviewable. A substantial feature is welcome; split it into dependent pull requests only when that makes implementation, testing, or review clearer.
 
 The README identifies `data_symbols.syms` as the source of truth for global variables. Generated function hooks are written to `src/generated/hook_generated.c` by `scripts/GenerateHooks.py` from `hook_generated_c.j2`. Do not make a manual-only edit to a generated file; update the relevant source/template and regenerate the output when appropriate.
 
@@ -64,6 +67,8 @@ Before submitting:
 - [ ] Update documentation when workflow or behaviour changes.
 - [ ] Regenerate generated files when their source/template changes.
 - [ ] Remove temporary logs, local paths, and unrelated formatting changes.
+- [ ] Identify risks, assumptions, and any untested paths.
+- [ ] Confirm no proprietary game binaries, assets, credentials, or secrets are included.
 
 Please do not claim that a change has been tested if it has not been tested.
 
@@ -73,4 +78,4 @@ Do not commit the original commercial game executable, proprietary game assets, 
 
 ## Finding a first task
 
-Look for a small reproducible bug, a missing explanation, a script that needs tests, or a single function/symbol that can be investigated independently. If you are unsure whether a task is suitable, open an issue using one of the repository's templates. Maintainers and contributors can then agree on its scope before implementation.
+Look for a reproducible bug, a missing explanation, a script that needs tests, or a function/symbol that can be investigated independently. Contributors are also welcome to propose larger feature work. If you are unsure whether a task is suitable, open an issue using one of the repository's templates. Maintainers and contributors can then agree on its scope before implementation.
