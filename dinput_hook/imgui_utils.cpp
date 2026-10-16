@@ -101,7 +101,7 @@ ImGuiState imgui_state = {
     .show_replacementTries = false,
     .replacementTries = std::string(""),
     .debug_env_cubemap = false,
-    .HD_replacement = true,
+    .HD_replacement = false,
     .show_original_and_replacements = false,
     .collect_textures_skip_pod_textures = true,
 };
@@ -287,7 +287,7 @@ void read_settings_ini() {
     imgui_state.ai_full_lod =
         set_mod_enabled(mod_ai_full_lod, config::get_int("settings", "ai_full_lod", 1));
 
-    imgui_state.HD_replacement = config::get_int("settings", "hd_replacement", 1);
+    imgui_state.HD_replacement = config::get_int("settings", "hd_replacement", 0);
     if (!hd_model_assets_available()) {
         imgui_state.HD_replacement = false;// assets/gltf missing -> nothing to replace
     }
