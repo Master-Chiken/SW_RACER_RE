@@ -70,6 +70,9 @@ bool virtual_block_IsInstalled(swrLoader_TYPE type);
 // Install views for the discrete chunks under ./assets/replacement_blocks/<type>/<index>.bin.
 void virtual_block_LoadFolderOverrides();
 
+// Return the current source archive path for a block type, or null when unsupported.
+const char **virtual_block_SourcePath(swrLoader_TYPE type);
+
 void virtual_block_RegisterHooks();
 
 // The three loader detours. With no view installed for `type` these are pass-throughs.
