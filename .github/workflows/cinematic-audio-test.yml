@@ -5,12 +5,18 @@ on:
     paths:
       - "dinput_hook/cinematic_audio.h"
       - "dinput_hook/renderer_hook.cpp"
+      - "src/Main/swrMain.c"
+      - "src/Swr/swrConfig.c"
+      - "dinput_hook/renderer_hook.cpp"
       - "tests/cinematic_audio_test.cpp"
       - ".github/workflows/cinematic-audio-test.yml"
   pull_request:
     branches: [master]
     paths:
       - "dinput_hook/cinematic_audio.h"
+      - "dinput_hook/renderer_hook.cpp"
+      - "src/Main/swrMain.c"
+      - "src/Swr/swrConfig.c"
       - "tests/cinematic_audio_test.cpp"
       - ".github/workflows/cinematic-audio-test.yml"
 
