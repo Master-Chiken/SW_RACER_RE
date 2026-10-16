@@ -227,10 +227,25 @@ void test_malformed_source_and_overrides(const fs::path &root) {
     const fs::path path = root / "stock-model.bin";
     const auto stock_payload = sequence(0x10, 16);
     write_bytes(path, make_block(2, {24, 28, 32, 36, 40}, stock_payload));
+    VirtualBlockView preserved{};
+    check(virtual_block_BuildView(swrLoader_TYPE_MODEL_BLOCK, path.string().c_str(), {}, &preserved),
+          "model builder creates a baseline view before a rejected rebuild");
+    const auto preserved_header = preserved.header;
+    const auto preserved_source_path = preserved.source_path;
+    const auto preserved_regions = preserved.regions;
+
     check(!virtual_block_BuildView(
               swrLoader_TYPE_MODEL_BLOCK, path.string().c_str(),
-              {{0, sequence(0xA0, 8), 4}, {0, sequence(0xB0, 8), 4}}, &view),
+              {{0, sequence(0xA0, 8), 4}, {0, sequence(0xB0, 8), 4}}, &preserved),
           "model builder rejects duplicate replacement indices");
+    check(preserved.header == preserved_header &&
+              preserved.source_path == preserved_source_path &&
+              preserved.regions.size() == preserved_regions.size() &&
+              !preserved.regions.empty() &&
+              preserved.regions[0].virtual_offset == preserved_regions[0].virtual_offset &&
+              preserved.regions[0].size == preserved_regions[0].size &&
+              preserved.regions[0].file_offset == preserved_regions[0].file_offset,
+          "failed rebuild leaves the previously prepared view unchanged");
     check(!virtual_block_BuildView(swrLoader_TYPE_MODEL_BLOCK, path.string().c_str(),
                                    {{3, sequence(0xC0, 8), 4}}, &view),
           "model builder rejects sparse extension that would create missing entries");
