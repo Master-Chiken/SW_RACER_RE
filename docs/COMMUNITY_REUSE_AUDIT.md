@@ -69,6 +69,21 @@ This older PC port combines x86 CPU emulation with a Windows API compatibility l
 ### G. OpenJKDF2 — targeted engine-pattern reference
 The upstream notes already identify possible similarities between Racer and the Sith/Jedi Knight engine family. Use OpenJKDF2 only when a specific subsystem is relevant. Similarity is a hypothesis to verify, not proof that functions are interchangeable.
 
+### H. swep1r_decomp — frozen decompilation/type reference
+**Repository:** https://github.com/DeonPoncini/swep1r_decomp
+
+The README describes a decompilation of the Steam PC version intended to help recover type definitions, function signatures, and DAT/global-variable information for the main decompilation effort. It explicitly says the repository is a reference snapshot and will not be developed further.
+
+**Recommended use:** consult it when an unresolved function signature or structure layout needs an additional cross-check. Treat every type/address as a hypothesis to reconcile against the current upstream symbols and the exact game version; do not cherry-pick the repository as a second active implementation.
+
+### I. Star-Wars-Episode-I-Racer-PCVR — downstream hook-architecture reference
+**Repository:** https://github.com/GameOrDie007/Star-Wars-Episode-I-Racer-PCVR  
+**Declared licence:** AGPL-3.0.
+
+This downstream fork adds OpenXR stereo rendering, head tracking, a world-locked 2D panel, and Quest controller support on top of the PC hook mod. Its README specifies a 32-bit OpenXR runtime, illustrating that third-party integrations can depend on particular runtime and renderer configurations.
+
+**Recommended use:** treat it as a possible compatibility partner/test target for the Windows PC hook, renderer, and input paths—not as proof of GameCube progress. Compare the fork's integration points and known issues before making renderer/input changes; avoid importing code without reviewing the exact fork revision, licence notices, and dependency requirements.
+
 ## 3. Prioritised action plan
 
 ### P0 — clarify target and prove runtime behaviour
