@@ -9,7 +9,7 @@ Use prior work as **references, test oracles, and sources of regression cases** 
 
 A GitHub compare of `tim-tim707/SW_RACER_RE:master` against `Master-Chiken/SW_RACER_RE:master` reports **27 commits ahead and 0 behind** at the time of this audit. The working fork already contains the upstream history through the comparison point, plus 27 commits of its own. Do not re-apply upstream changes already in the common history.
 
-The default branch is primarily a **Windows PC decompilation / DLL-hook and modding project**. The clean-room GameCube/Dolphin prototype discussed in planning was not found at `gamecube-demo/README.md` or `docs/NEXT_MILESTONE.md` on the default branch. A complete branch-name search returned 20 branches and none with `gamecube` or `proto` in the branch name. This does not prove no prototype exists elsewhere, but it means the repository currently provides no verifiable location from which to build or run it. Record it as an unresolved scope/location blocker until a path, branch or separate repository and reproducible instructions are supplied.
+The default branch is primarily a **Windows PC decompilation / DLL-hook and modding project**. The clean-room GameCube/Wii prototype is tracked separately at [`Master-Chiken/boonta-reborn-88`](https://github.com/Master-Chiken/boonta-reborn-88), whose README and status docs describe the native DOL/ELF build and CI/Dolphin checks. Keep its results and completion estimates separate from this PC hook/decompilation repository: a prototype elsewhere is not code in this branch, and automated DTM/render tests are not the same as live-controller or hardware acceptance. In this audit, the missing `gamecube-demo/README.md` and `docs/NEXT_MILESTONE.md` paths on this repository's default branch are therefore a repository-boundary distinction, not evidence that the other project does not exist.
 
 ## 1. Fork comparison
 
@@ -86,10 +86,10 @@ This downstream fork adds OpenXR stereo rendering, head tracking, a world-locked
 
 ## 3. Prioritised action plan
 
-### P0 — clarify target and prove runtime behaviour
-1. Locate the clean-room GameCube prototype and milestone document; neither expected path was present on this default branch during the audit.
-2. Decide whether Windows mod/decompilation and GameCube clean-room work are separate workstreams. Give each its own deliverables and completion criteria.
-3. Define a reproducible end-to-end run and record real results. Do not mark Dolphin/controller playability complete without a visible test and outcome.
+### P0 — keep platform scope and runtime claims precise
+1. Keep Windows PC decompilation/DLL-hook work in this repository and native clean-room GameCube/Wii work in [`boonta-reborn-88`](https://github.com/Master-Chiken/boonta-reborn-88), with separate roadmaps and completion estimates.
+2. Link to the separate project's [interactive acceptance milestone](https://github.com/Master-Chiken/boonta-reborn-88/blob/main/docs/NEXT_MILESTONE.md) when cross-referencing its status; do not imply that its source lives on this PC repository's default branch.
+3. For either workstream, define reproducible tests and record real results. Automated rendering/input movies, live visible-manual control, and physical-hardware acceptance are separate evidence levels.
 
 ### P1 — convert upstream experience into regression coverage
 1. Add or verify tests for truncated/invalid block files, oversized counts, invalid offsets, missing model assets, cache changes between stock/custom tracks, save-record boundaries, and free-play navigation.
@@ -118,13 +118,14 @@ The working repository declares AGPL-3.0. The projects above declare MIT, GPL-3.
 
 **Established:** fork commit delta; broad scope of recent additions; stated function-analysis percentage; advertised capabilities and licences in the referenced project READMEs.
 
-**Not established:** that every feature works in a real game session; compatibility of every tool with every game version; that the GameCube prototype exists on this default branch; or that external code can be merged without code-level review and tests.
+**Not established:** that every feature works in a real game session; compatibility of every tool with every game version; live physical-controller or console compatibility for the separate GameCube prototype; or that external code can be merged without code-level review and tests.
 
 ## Recommended next milestone: Independent compatibility and runtime evidence
 
 - checked upstream comparison;
 - documented custom-track regression cases;
 - at least one independent asset round-trip comparison;
-- verified location and reproducible run procedure for the GameCube prototype, if it remains in scope.
+- an independent asset round-trip comparison and a reproducible PC custom-track runtime check in this repository;
+- separate from this audit, complete the manual controller/Dolphin acceptance checklist in [`boonta-reborn-88`](https://github.com/Master-Chiken/boonta-reborn-88) before claiming interactive or hardware playability.
 
 Recalculate the overall completion estimate only after collecting these results.
