@@ -36,16 +36,19 @@ An area lead may propose tasks, help contributors, review technical evidence, an
 
 Appoint area leads based on demonstrated contributions and constructive reviews, not simply because someone requests elevated access.
 
-### 3. Contributor / Developer
+### 3. Core Contributor / Developer
 
-**Decision authority: owns their proposed change, not the repository.**
+**Freedom to implement; no unilateral control over the official branch.**
 
-- Works on a focused task in a personal fork or feature branch.
-- Opens a pull request describing the change, evidence, and tests.
-- Responds to review feedback and updates their pull request.
-- Does not merge their own changes into `master` unless the Project Owner has explicitly authorised it.
+Core contributors may take ownership of substantial work: implement complete features, refactor modules, change algorithms, improve scripts, add tests, investigate multiple related functions, and maintain a technical area. They should coordinate early on changes that affect architecture or overlap with ongoing work, but they are not limited to trivial fixes.
 
-A contributor does not need direct push access to participate. Forks and pull requests are the default entry path for new contributors.
+- Works in a personal fork or a feature branch.
+- May commit and push to their own branch; trusted invited collaborators may push feature branches in this repository.
+- Can run builds/tests, open draft or ready pull requests, review proposed changes, and iterate based on feedback.
+- Records evidence and validation for reverse-engineering changes.
+- Cannot bypass the required review for `master` or merge their own changes unless the Project Owner has explicitly granted that authority.
+
+New people can begin with forks and pull requests. Direct repository write access is reserved for contributors whom the Project Owner trusts with broad write permission.
 
 ### 4. Reverse-Engineering Researcher
 
@@ -63,17 +66,17 @@ One person may hold several project roles. Roles can be earned, changed, or with
 
 ## Change approval policy
 
-The default policy for `master` is:
+The intended policy for `master` is:
 
-1. Changes arrive through a pull request, not a direct push.
-2. Pull requests explain the purpose, scope, evidence, validation, and any known limitations.
+1. Every change goes through a pull request; direct pushes to `master` are blocked.
+2. Pull requests describe the change, why it is needed, the evidence, tests, and known limitations.
 3. The Project Owner reviews and explicitly approves changes before merge.
-4. Relevant checks must pass, and review conversations must be resolved.
-5. Large or risky changes should be split into smaller pull requests.
+4. New commits invalidate stale approvals; relevant checks must pass and review conversations must be resolved.
+5. Contributors are encouraged to propose complete, ambitious changes. Split a change only when it improves review, testing, or coordination—not just to restrict contributor scope.
 6. Generated files should be regenerated from their source/template where appropriate, rather than edited manually.
-7. No contributor should claim tests were run unless they were actually run.
+7. No contributor should claim tests were run unless they actually were run.
 
-The repository's `.github/CODEOWNERS` marks the Project Owner as the reviewer for every path. GitHub branch protection must also be enabled for this requirement to be enforced automatically; see the README's contribution section and the GitHub settings instructions maintained by the Project Owner.
+The repository's `.github/CODEOWNERS` marks the Project Owner as the reviewer for every path. **CODEOWNERS is not enforcement by itself.** The Project Owner must enable branch protection or a branch ruleset in GitHub settings. Until that is done, treat this policy as documented intent rather than a guarantee enforced by GitHub. See [ACCESS_CONTROL.md](ACCESS_CONTROL.md).
 
 ## Access and trust
 
@@ -81,9 +84,10 @@ This repository is owned by a personal GitHub account. GitHub's personal-reposit
 
 Therefore:
 
-- **New contributors:** use forks and pull requests; no direct collaborator invitation is required.
-- **Trusted contributors who need direct push access:** invite only after discussing the scope and expectations. Protect `master` first.
-- **Never grant administrative access merely to make contribution easier.** Keep it with the Project Owner.
+- **Public visitors:** can read the public repository and work in their own forks. Their pull requests are proposals; they do not change this repository unless accepted.
+- **New contributors:** begin with forks and pull requests. They can still implement full features independently.
+- **Trusted core contributors:** once branch protection is configured, invite them as collaborators if they need to push feature branches directly to this repository. Explain that this is broad write access and requires trust.
+- **Project Owner:** keeps repository administration and final merge/release decisions. Do not grant admin access just to make development easier.
 - **If granular permissions become necessary:** consider an organisation-owned repository, where GitHub supports more detailed repository roles. Assess the ownership and migration implications before transferring anything.
 
 The Project Owner can remove direct collaborator access at any time. Removing access does not remove copies someone has already cloned or downloaded, so do not put secrets or proprietary third-party files in the repository.
