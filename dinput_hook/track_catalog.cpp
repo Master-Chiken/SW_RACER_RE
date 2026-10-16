@@ -233,9 +233,17 @@ namespace {
                                                    WINHTTP_NO_REFERER,
                                                    WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
             if (request) {
-                if (WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                                       WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-                    WinHttpReceiveResponse(request, nullptr)) {
+                // WinHTTP follows redirects by default. A valid HTTPS catalog could otherwise
+                // redirect to plain HTTP, bypassing the initial host/scheme check above. This
+                // client fetches immutable catalog/blob URLs, so redirects are unnecessary;
+                // reject them instead of risking an HTTPS downgrade.
+                DWORD disabled_features = WINHTTP_DISABLE_REDIRECTS;
+                if (!WinHttpSetOption(request, WINHTTP_OPTION_DISABLE_FEATURE,
+                                      &disabled_features, sizeof(disabled_features))) {
+                    *error = "could not enforce redirect policy for " + url;
+                } else if (WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                              WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                           WinHttpReceiveResponse(request, nullptr)) {
                     DWORD code = 0;
                     DWORD code_size = sizeof(code);
                     if (!WinHttpQueryHeaders(request,
