@@ -67,7 +67,7 @@ jobs:
       - name: Run cinematic audio regression tests
         shell: pwsh
         run: |
-          & "$env:LLVM_MINGW_ROOT\bin\clang++.exe" -std=c++20 -Wall -Wextra -Werror -pedantic tests\cinematic_audio_test.cpp -o cinematic_audio_test.exe
+          & "$env:LLVM_MINGW_ROOT\bin\clang++.exe" -std=c++20 -static -static-libgcc -Wall -Wextra -Werror -pedantic tests\cinematic_audio_test.cpp -o cinematic_audio_test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\cinematic_audio_test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
