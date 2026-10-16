@@ -81,6 +81,14 @@ jobs:
           cmake --preset clang-release
           cmake --build --preset clang-release
 
+      - name: Run manifest parser and atomic view integration tests
+        shell: pwsh
+        run: |
+          & "$env:LLVM_MINGW_ROOT\bin\clang++.exe" --target=i686-w64-mingw32 -std=c++20 -static -static-libgcc -Wall -Wextra -pedantic -I "src" -I "dinput_hook" -I "dinput_hook\fastgltf-0.8.0\deps\simdjson" tests\track_manifest_integration_test.cpp dinput_hook\track_manifest.cpp dinput_hook\fastgltf-0.8.0\deps\simdjson\simdjson.cpp -lbcrypt -o track_manifest_integration_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\track_manifest_integration_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   sanitizers:
     runs-on: windows-latest
     strategy:
