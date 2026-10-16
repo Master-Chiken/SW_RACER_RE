@@ -9,7 +9,7 @@ Use prior work as **references, test oracles, and sources of regression cases** 
 
 A GitHub compare of `tim-tim707/SW_RACER_RE:master` against `Master-Chiken/SW_RACER_RE:master` reports **27 commits ahead and 0 behind** at the time of this audit. The working fork already contains the upstream history through the comparison point, plus 27 commits of its own. Do not re-apply upstream changes already in the common history.
 
-The default branch is primarily a **Windows PC decompilation / DLL-hook and modding project**. The clean-room GameCube/Dolphin prototype discussed in planning was not found at `gamecube-demo/README.md` or `docs/NEXT_MILESTONE.md` on this branch. It may live elsewhere; verify its location before treating it as part of this branch's completion.
+The default branch is primarily a **Windows PC decompilation / DLL-hook and modding project**. The clean-room GameCube/Dolphin prototype discussed in planning was not found at `gamecube-demo/README.md` or `docs/NEXT_MILESTONE.md` on the default branch. A complete branch-name search returned 20 branches and none with `gamecube` or `proto` in the branch name. This does not prove no prototype exists elsewhere, but it means the repository currently provides no verifiable location from which to build or run it. Record it as an unresolved scope/location blocker until a path, branch or separate repository and reproducible instructions are supplied.
 
 ## 1. Fork comparison
 
