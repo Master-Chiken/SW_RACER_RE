@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <climits>
 #include <limits>
 #include <cstring>
 
@@ -19,6 +20,21 @@ inline constexpr uint64_t kMaxBlockEntries = 1'000'000ULL;
 inline bool range_within(uint64_t offset, uint64_t size, uint64_t begin,
                          uint64_t end) noexcept {
     return begin <= end && offset >= begin && offset <= end && size <= end - offset;
+}
+
+ // Checks a loader's signed-long read against a virtual region without signed overflow.
+// LONG_MAX is platform-dependent (32-bit in the game's Windows build).
+inline bool long_range_within(long offset, uint64_t size, long begin,
+                              uint64_t region_size) noexcept {
+    if (offset < 0 || begin < 0)
+        return false;
+    const uint64_t max_offset = static_cast<uint64_t>(LONG_MAX);
+    const uint64_t read_begin = static_cast<uint64_t>(offset);
+    const uint64_t region_begin = static_cast<uint64_t>(begin);
+    if (size > max_offset || read_begin > max_offset - size ||
+        region_size > max_offset - region_begin)
+        return false;
+    return range_within(read_begin, size, region_begin, region_begin + region_size);
 }
 
 inline bool words_per_entry(Kind kind, uint64_t *out) noexcept {
