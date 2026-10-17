@@ -500,9 +500,12 @@ bool track_manifest_InstallViews(const TrackManifest &manifest) {
             virtual_block_Install(entry.type, std::move(entry.view));
     }
 
-    fprintf(hook_log, "[track_manifest] installed views for '%s' (%s)\n", manifest.slug.c_str(),
-            manifest.content_hash.empty() ? "no content hash" : manifest.content_hash.c_str());
-    fflush(hook_log);
+    if (hook_log) {
+        fprintf(hook_log, "[track_manifest] installed views for '%s' (%s)\n",
+                manifest.slug.c_str(),
+                manifest.content_hash.empty() ? "no content hash" : manifest.content_hash.c_str());
+        fflush(hook_log);
+    }
     return true;
 }
 
