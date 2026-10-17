@@ -28,6 +28,13 @@ The repository also contains a track catalog/browser path for discovering and do
 
 The supported mod build targets **32-bit Windows** and produces `dinput.dll`. The easiest documented setup is a Windows development environment with the LLVM-MinGW toolchain.
 
+### Get the source
+
+```powershell
+git clone https://github.com/Master-Chiken/SW_RACER_RE.git
+cd SW_RACER_RE
+```
+
 ### Prerequisites
 
 - Git
