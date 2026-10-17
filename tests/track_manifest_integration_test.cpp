@@ -122,15 +122,17 @@ std::string asset_json(const std::string &sha, size_t size, const char *index_na
 std::string manifest_json(const std::string &slug, int schema, const std::string &model_json,
                           const std::string &placement_json =
                               "{\"planet\":0,\"planet_track_number\":0,"
-                              "\"favorite_pilot\":0,\"overrides_stock_slot\":-1}",
-                          const std::string &textures_json = "[]") {
+                              "\"favorite_pilot\":0,\"overrides_stock_slot\":0}",
+                          const std::string &textures_json = "[]",
+                          const std::string &spline_json = "") {
+    const std::string spline_field =
+        spline_json.empty() ? "" : ",\"spline\":" + spline_json;
     return "{\"schema\":" + std::to_string(schema) + ",\"slug\":\"" + slug +
            "\",\"version\":\"1.0.0\",\"name\":\"Test Track\","
            "\"author\":{\"name\":\"CI\"},\"model\":" + model_json +
-           ",\"textures\":" + textures_json + ",\"placement\":" +
+           spline_field + ",\"textures\":" + textures_json + ",\"placement\":" +
            placement_json + "}";
 }
-
 fs::path write_manifest(const fs::path &root, const std::string &name,
                         const std::string &json) {
     const fs::path path = root / "manifests" / name / "track.json";
@@ -231,8 +233,27 @@ int main() {
               &parsed),
           "C++ manifest parser accepts a valid manifest");
     check(parsed.slug == "valid-track" && parsed.model.sha256 == abc_hash &&
-              parsed.model.size == 3 && parsed.placement.overrides_stock_slot == -1,
+              parsed.model.size == 3 && parsed.placement.overrides_stock_slot == 0,
           "C++ manifest parser populates model and placement fields");
+
+    const std::string no_stock_spline_slot =
+        "{\"planet\":0,\"planet_track_number\":0,"
+        "\"favorite_pilot\":0,\"overrides_stock_slot\":-1}";
+    check(!track_manifest_Read(
+              write_manifest(root, "missing-spline-and-stock-slot",
+                             manifest_json("missing-spline-and-stock-slot", 1, minimal_model,
+                                           no_stock_spline_slot)),
+              &parsed),
+          "C++ manifest parser rejects a track with neither custom nor stock spline");
+
+    check(track_manifest_Read(
+              write_manifest(root, "own-spline-no-stock-slot",
+                             manifest_json("own-spline-no-stock-slot", 1, minimal_model,
+                                           no_stock_spline_slot, "[]",
+                                           asset_json(abc_hash, 3, "block_id", 1))),
+              &parsed) && parsed.has_spline &&
+                  parsed.placement.overrides_stock_slot == -1,
+          "C++ manifest parser accepts a custom spline without a stock slot");
 
     check(!track_manifest_Read(
               write_manifest(root, "bad-schema", manifest_json("bad-schema", 2, minimal_model)),
