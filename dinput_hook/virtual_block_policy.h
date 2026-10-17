@@ -22,7 +22,7 @@ inline bool range_within(uint64_t offset, uint64_t size, uint64_t begin,
     return begin <= end && offset >= begin && offset <= end && size <= end - offset;
 }
 
- // Checks a loader's signed-long read against a virtual region without signed overflow.
+// Checks a loader's signed-long read against a virtual region without signed overflow.
 // LONG_MAX is platform-dependent (32-bit in the game's Windows build).
 inline bool long_range_within(long offset, uint64_t size, long begin,
                               uint64_t region_size) noexcept {
