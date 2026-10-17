@@ -77,6 +77,25 @@ int main() {
                         std::numeric_limits<uint64_t>::max()),
           "read range rejects overflow without adding offset and size");
 
+    check(long_range_within(24, 4, 24, 8),
+          "signed loader range accepts a read at a region's start");
+    check(long_range_within(28, 4, 24, 8),
+          "signed loader range accepts a read ending exactly at the region boundary");
+    check(long_range_within(32, 0, 24, 8),
+          "signed loader range accepts an empty read at the region end");
+    check(!long_range_within(31, 2, 24, 8),
+          "signed loader range rejects a read crossing a region boundary");
+    check(!long_range_within(23, 1, 24, 8),
+          "signed loader range rejects a read before the region");
+    check(!long_range_within(-1, 1, 24, 8),
+          "signed loader range rejects negative read offsets");
+    check(!long_range_within(24, 1, -1, 8),
+          "signed loader range rejects negative region offsets");
+    check(!long_range_within(LONG_MAX, 1, 24, 8),
+          "signed loader range rejects a read overflowing LONG_MAX");
+    check(!long_range_within(24, 1, 24, std::numeric_limits<uint64_t>::max()),
+          "signed loader range rejects a region exceeding LONG_MAX");
+
     check(source_path_matches("data/lev01/out_modelblock.bin",
                               "data/lev01/out_modelblock.bin"),
           "virtual view accepts the exact source archive path");
