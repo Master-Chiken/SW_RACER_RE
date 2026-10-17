@@ -258,6 +258,16 @@ bool track_manifest_Read(const fs::path &path, TrackManifest *out) {
         return false;
     }
 
+    if (!manifest.has_spline && manifest.placement.overrides_stock_slot < 0) {
+        if (hook_log) {
+            fprintf(hook_log,
+                    "[track_manifest] %s has neither a custom spline nor a stock spline slot\\n",
+                    path.generic_string().c_str());
+            fflush(hook_log);
+        }
+        return false;
+    }
+
     manifest.directory = path.parent_path();
     *out = std::move(manifest);
     return true;
