@@ -399,18 +399,22 @@ void virtual_block_Install(swrLoader_TYPE type, VirtualBlockView view) {
 
     views[type] = std::move(view);
     stats[type] = {};
-    fprintf(hook_log, "[virtual_block] installed %s view: %u byte header, %u region(s)\n",
-            type_name(type), (unsigned) views[type]->header.size(),
-            (unsigned) views[type]->regions.size());
-    fflush(hook_log);
+    if (hook_log) {
+        fprintf(hook_log, "[virtual_block] installed %s view: %u byte header, %u region(s)\n",
+                type_name(type), (unsigned) views[type]->header.size(),
+                (unsigned) views[type]->regions.size());
+        fflush(hook_log);
+    }
 }
 
 void virtual_block_Remove(swrLoader_TYPE type) {
     if (!valid_type(type) || !views[type].has_value())
         return;
 
-    fprintf(hook_log, "[virtual_block] removed %s view\n", type_name(type));
-    fflush(hook_log);
+    if (hook_log) {
+        fprintf(hook_log, "[virtual_block] removed %s view\n", type_name(type));
+        fflush(hook_log);
+    }
     views[type].reset();
 }
 
@@ -457,9 +461,12 @@ void swrLoader_OpenBlock_delta(swrLoader_TYPE type) {
     const char **path = block_path(type);
     if (path != nullptr && valid_type(type) && last_open_path[type] != (*path ? *path : "")) {
         last_open_path[type] = *path ? *path : "";
-        fprintf(hook_log, "[virtual_block] %s block now reads '%s' (handle=%p on entry)\n",
-                type_name(type), last_open_path[type].c_str(), (const void *) block_handle(type));
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log, "[virtual_block] %s block now reads '%s' (handle=%p on entry)\n",
+                    type_name(type), last_open_path[type].c_str(),
+                    (const void *) block_handle(type));
+            fflush(hook_log);
+        }
     }
 
     // The real file is opened either way: a view falls back to it for every entry it does not
@@ -515,12 +522,14 @@ size_t swrLoader_ReadAt_delta(swrLoader_TYPE type, long offset, void *dst, size_
 void swrLoader_CloseBlock_delta(swrLoader_TYPE type) {
     if (valid_type(type) && views[type].has_value()) {
         const ReadStats &s = stats[type];
-        fprintf(hook_log,
-                "[virtual_block] %s block closed: %u header, %u memory, %u file, %u unmapped, "
-                "%u other-block read(s)\n",
-                type_name(type), s.from_header, s.from_memory, s.from_file, s.unmapped,
-                s.wrong_block);
-        fflush(hook_log);
+        if (hook_log) {
+            fprintf(hook_log,
+                    "[virtual_block] %s block closed: %u header, %u memory, %u file, %u unmapped, "
+                    "%u other-block read(s)\n",
+                    type_name(type), s.from_header, s.from_memory, s.from_file, s.unmapped,
+                    s.wrong_block);
+            fflush(hook_log);
+        }
         stats[type] = {};
     }
 

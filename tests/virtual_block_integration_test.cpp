@@ -127,12 +127,15 @@ void test_model_fallback_and_override(const fs::path &root) {
     check(view.owned.front() == sequence(0xA0, 8),
           "replacement payload lifetime is owned by the installed view");
 
+    FILE *saved_log = hook_log;
+    hook_log = nullptr;
     virtual_block_Install(swrLoader_TYPE_MODEL_BLOCK, std::move(view));
     check(virtual_block_IsInstalled(swrLoader_TYPE_MODEL_BLOCK),
-          "install marks a model view active");
+          "model view installs when hook logging is unavailable");
     virtual_block_Remove(swrLoader_TYPE_MODEL_BLOCK);
+    hook_log = saved_log;
     check(!virtual_block_IsInstalled(swrLoader_TYPE_MODEL_BLOCK),
-          "removing the view restores pass-through state");
+          "model view removes cleanly when hook logging is unavailable");
 }
 
 void test_spline_fallback_and_override(const fs::path &root) {
