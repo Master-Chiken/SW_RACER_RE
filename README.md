@@ -108,7 +108,7 @@ The documented decompilation workflow uses **Ghidra 10.2.2**. If you use another
 
 1. Open the appropriate local game executable in Ghidra.
 2. Parse the C source in `src/types.h` before importing function prototypes.
-3. Generate `master_header.h` with `GenerateMasterHeader.py` and use `ImportHeaderInfos.py` from `scripts/Ghidra/` to import the header information.
+3. Run `scripts/Ghidra/GenerateMasterHeader.py` to generate `master_header.h`, then run `scripts/Ghidra/ImportHeaderInfos.py` inside Ghidra to import the header information.
 4. Run `scripts/Ghidra/importDataSymbols.py` inside Ghidra to import global-variable addresses from `data_symbols.syms`.
 5. Use disassembly, callers, data references, runtime observations, and a matching prototype to support any proposed implementation.
 
