@@ -1,4 +1,6 @@
 #include "../dinput_hook/virtual_block.h"
+#include "../dinput_hook/hook_helper.h"
+#include "../dinput_hook/patch.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -13,6 +15,19 @@
 
 extern "C" {
 FILE *hook_log = nullptr;
+
+// Link-only stubs for the game loader: this test exercises the virtual block builder and view
+// lifecycle, not the injected loader hooks themselves.
+void swrLoader_OpenBlock(swrLoader_TYPE) {}
+size_t swrLoader_ReadAt(swrLoader_TYPE, long, void *, size_t) { return 0; }
+void swrLoader_CloseBlock(swrLoader_TYPE) {}
+}
+
+std::map<void *, void *> hook_replacements;
+std::map<void *, DebugFunctionInfo> hooks;
+
+bool WriteMemory(PatchOwner, void *, const void *, size_t) {
+    return true;
 }
 
 namespace {
