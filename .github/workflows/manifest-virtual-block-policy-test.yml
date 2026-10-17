@@ -1,0 +1,45 @@
+name: Manifest and virtual-block policy tests
+
+on:
+  push:
+    paths:
+      - ".github/workflows/manifest-virtual-block-policy-test.yml"
+      - "dinput_hook/track_manifest_policy.h"
+      - "dinput_hook/track_manifest.cpp"
+      - "dinput_hook/virtual_block_policy.h"
+      - "dinput_hook/virtual_block.cpp"
+      - "tests/track_manifest_policy_test.cpp"
+      - "tests/virtual_block_policy_test.cpp"
+  pull_request:
+    paths:
+      - ".github/workflows/manifest-virtual-block-policy-test.yml"
+      - "dinput_hook/track_manifest_policy.h"
+      - "dinput_hook/track_manifest.cpp"
+      - "dinput_hook/virtual_block_policy.h"
+      - "dinput_hook/virtual_block.cpp"
+      - "tests/track_manifest_policy_test.cpp"
+      - "tests/virtual_block_policy_test.cpp"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: g++
+            extra_flags: ""
+          - compiler: clang++
+            extra_flags: ""
+          - compiler: g++
+            extra_flags: "-fsanitize=address,undefined -fno-omit-frame-pointer"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build manifest-policy tests
+        run: ${{ matrix.compiler }} -std=c++20 -Wall -Wextra -Werror -pedantic ${{ matrix.extra_flags }} tests/track_manifest_policy_test.cpp -o /tmp/track-manifest-policy-test
+      - name: Run manifest-policy tests
+        run: /tmp/track-manifest-policy-test
+      - name: Build virtual-block-policy tests
+        run: ${{ matrix.compiler }} -std=c++20 -Wall -Wextra -Werror -pedantic ${{ matrix.extra_flags }} tests/virtual_block_policy_test.cpp -o /tmp/virtual-block-policy-test
+      - name: Run virtual-block-policy tests
+        run: /tmp/virtual-block-policy-test
