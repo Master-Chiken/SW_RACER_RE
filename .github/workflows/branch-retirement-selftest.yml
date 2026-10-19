@@ -50,7 +50,7 @@ jobs:
                   raise SystemExit(f"Expected exact SHA must appear once for {branch}")
           required = (
               "archive/branch-heads-20261019",
-              'default_branch="$(gh api "repos/$GH_REPO" --jq \' .default_branch\')',
+              'default_branch="$(gh api',
               "state=open&per_page=100",
               "protected",
               "merge-base --is-ancestor",
