@@ -1,0 +1,71 @@
+name: Branch-retirement workflow self-test
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/retire-verified-duplicate-refs.yml"
+      - ".github/workflows/branch-retirement-selftest.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate workflow syntax
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path); puts "YAML OK: #{path}" }' \
+            .github/workflows/retire-verified-duplicate-refs.yml \
+            .github/workflows/branch-retirement-selftest.yml
+      - name: Verify exact allowlist and conservative deletion guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/retire-verified-duplicate-refs.yml").read_text(encoding="utf-8")
+          expected = {
+              "work/virtual-block-provider": "892d66e900e5ec53b07bd24bbb5381ec50ca1e1a",
+              "fix/require-spline-or-stock-slot": "95a8026bafb09374c7ab6efa91d8dfdd45a9cec6",
+              "test/raw-asset-boundaries": "2e008f107ad5d59a0478fa7d0c199b58c3a71b00",
+              "fix/dinput-hook-log-filename": "2c6bcd1b9b01cb45d04deb169ed95ea262f03ed3",
+              "work/catalog-redirect-hardening": "7f166042572e9636e7b135201a1e96a2ea9eb866",
+              "fix/game-cursor-scaling": "39a1c34deaa52a18e734f7b40674f78a8a0cc5cf",
+              "docs/community-reuse-audit-2026-10-16": "8b2f9e0f6d382bf0ddaad88b57606e475707d8ad",
+              "contribute/cursor-scaling-upstream": "748a013119826fbe918f5b86b5260024bf2ba228",
+              "contribute/hook-log-doc-upstream": "97295daefe069bbc44288abf64d3e2d17fd084fa",
+          }
+          for branch, sha in expected.items():
+              if workflow.count(f'"{branch}"') != 1:
+                  raise SystemExit(f"Unexpected retirement scope for {branch}")
+              if workflow.count(f'"{sha}"') != 1:
+                  raise SystemExit(f"Expected exact SHA must appear once for {branch}")
+          required = (
+              "archive/branch-heads-20261019",
+              'default_branch="$(gh api "repos/$GH_REPO" --jq \' .default_branch\')',
+              "state=open&per_page=100",
+              "protected",
+              "merge-base --is-ancestor",
+              "Preflight all candidates, then retire exact refs",
+              "--method DELETE",
+              "Final ref/protection/PR check changed",
+              '[[ "$final_count" -ge 20 ]]',
+          )
+          for marker in required:
+              if marker not in workflow:
+                  raise SystemExit(f"Missing required cleanup safety check: {marker!r}")
+          if re.search(r"(?m)^  workflow_dispatch:\s*$", workflow):
+              raise SystemExit("Destructive cleanup must not have workflow_dispatch.")
+          for keeper in ('"master"', '"archive/branch-heads-20261019"'):
+              if keeper not in workflow:
+                  raise SystemExit(f"Required keeper missing from script: {keeper}")
+          print("Retirement allowlist and all preservation/protection/open-PR/exact-SHA guards verified.")
+          PY
