@@ -1,4 +1,5 @@
 name: Branch-retirement workflow self-test
+# Comment-only management edit (2026-10-19): exercise the non-destructive push/PR validation triggers.
 
 on:
   push:
