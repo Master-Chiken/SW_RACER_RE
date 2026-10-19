@@ -1,6 +1,12 @@
 name: Branch-retirement workflow self-test
 
 on:
+  push:
+    branches:
+      - "chore/archive-backed-branch-cleanup-20261019"
+    paths:
+      - ".github/workflows/retire-verified-duplicate-refs.yml"
+      - ".github/workflows/branch-retirement-selftest.yml"
   pull_request:
     paths:
       - ".github/workflows/retire-verified-duplicate-refs.yml"
