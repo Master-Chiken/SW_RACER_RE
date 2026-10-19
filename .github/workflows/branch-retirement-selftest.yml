@@ -43,6 +43,12 @@ jobs:
               "contribute/cursor-scaling-upstream": "748a013119826fbe918f5b86b5260024bf2ba228",
               "contribute/hook-log-doc-upstream": "97295daefe069bbc44288abf64d3e2d17fd084fa",
           }
+          if len(expected) != 9:
+              raise SystemExit("Retirement scope regression: expected exactly nine audited candidates.")
+          if "master" in expected or "archive/branch-heads-20261019" in expected:
+              raise SystemExit("Protected integration branch and recovery archive must never be cleanup candidates.")
+          if "test/manifest-virtual-block-validation" in expected:
+              raise SystemExit("Active PR #18 head must never be a cleanup candidate.")
           for branch, sha in expected.items():
               if workflow.count(f'"{branch}"') != 1:
                   raise SystemExit(f"Unexpected retirement scope for {branch}")
