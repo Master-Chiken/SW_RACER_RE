@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "repository": "Master-Chiken/SW_RACER_RE",
+  "captured_at_utc": "2026-10-19",
+  "baseline_branch_count": 24,
+  "baseline_master_sha": "66120be334a3fd38c10a259f3528cffbfed8ddc5",
+  "archive_branch": "archive/branch-heads-20261019",
+  "retention_semantics": "The archive commit is a multi-parent preservation anchor: its parent list includes the exact head commit of every live branch at capture time. Retiring a ref name is not integration into master. Each captured tip remains reachable from this archive commit unless a later rewrite removes the archive ref (which must never be part of routine cleanup).",
+  "target_live_ref_count": 16,
+  "keepers": [
+    "master",
+    "archive/branch-heads-20261019",
+    "test/manifest-virtual-block-validation",
+    "work/discrete-track-asset-tools-clean"
+  ],
+  "cleanup_candidates": [
+    {
+      "name": "work/virtual-block-provider",
+      "sha": "892d66e900e5ec53b07bd24bbb5381ec50ca1e1a",
+      "evidence": "exact SHA duplicate of retained work/discrete-track-asset-tools-clean",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "fix/require-spline-or-stock-slot",
+      "sha": "95a8026bafb09374c7ab6efa91d8dfdd45a9cec6",
+      "evidence": "exact SHA duplicate of active PR #18 head test/manifest-virtual-block-validation",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "test/raw-asset-boundaries",
+      "sha": "2e008f107ad5d59a0478fa7d0c199b58c3a71b00",
+      "evidence": "merged PR #19; changed-file blobs were verified equal to master",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "fix/dinput-hook-log-filename",
+      "sha": "2c6bcd1b9b01cb45d04deb169ed95ea262f03ed3",
+      "evidence": "only changed README blob matches master",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "work/catalog-redirect-hardening",
+      "sha": "7f166042572e9636e7b135201a1e96a2ea9eb866",
+      "evidence": "only changed track_catalog.cpp blob matches master",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "fix/game-cursor-scaling",
+      "sha": "39a1c34deaa52a18e734f7b40674f78a8a0cc5cf",
+      "evidence": "all four changed-file blobs match master",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "docs/community-reuse-audit-2026-10-16",
+      "sha": "8b2f9e0f6d382bf0ddaad88b57606e475707d8ad",
+      "evidence": "merged PR #14; both documentation blobs match master",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "contribute/cursor-scaling-upstream",
+      "sha": "748a013119826fbe918f5b86b5260024bf2ba228",
+      "evidence": "all four changed-file blobs match master; no upstream PR was found",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    },
+    {
+      "name": "contribute/hook-log-doc-upstream",
+      "sha": "97295daefe069bbc44288abf64d3e2d17fd084fa",
+      "evidence": "only changed README blob matches master; no upstream PR was found",
+      "status": "candidate_only; retire only after a reviewed fixed-SHA workflow passes exact-ref, unprotected, no-open-PR, and archive ancestry checks"
+    }
+  ],
+  "branches": [
+    {
+      "name": "contribute/cursor-scaling-upstream",
+      "sha": "748a013119826fbe918f5b86b5260024bf2ba228",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "all four changed-file blobs match master; no upstream PR was found"
+    },
+    {
+      "name": "contribute/hd-replacement-default-upstream",
+      "sha": "593d7123653d663f4d244829cfdb7b872642a197",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "contribute/hook-log-doc-upstream",
+      "sha": "97295daefe069bbc44288abf64d3e2d17fd084fa",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "only changed README blob matches master; no upstream PR was found"
+    },
+    {
+      "name": "contribute/no-sound-cinematics-upstream",
+      "sha": "a8c80d03925a0adb3e693788956412fc59139c38",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "docs/community-reuse-audit-2026-10-16",
+      "sha": "8b2f9e0f6d382bf0ddaad88b57606e475707d8ad",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "merged PR #14; both documentation blobs match master"
+    },
+    {
+      "name": "docs/readme-onboarding-refresh",
+      "sha": "0c05cde30b13529f4fabbd3bd15316a8630cb3ff",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "fix/default-hd-replacement-off",
+      "sha": "89869105a7a387fb712a98652559664173e24968",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "fix/dinput-hook-log-filename",
+      "sha": "2c6bcd1b9b01cb45d04deb169ed95ea262f03ed3",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "only changed README blob matches master"
+    },
+    {
+      "name": "fix/game-cursor-scaling",
+      "sha": "39a1c34deaa52a18e734f7b40674f78a8a0cc5cf",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "all four changed-file blobs match master"
+    },
+    {
+      "name": "fix/no-sound-cinematics",
+      "sha": "a53eacbb48865fc3fe656f6cb99a4b9ff880dfa9",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "fix/require-spline-or-stock-slot",
+      "sha": "95a8026bafb09374c7ab6efa91d8dfdd45a9cec6",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "exact SHA duplicate of active PR #18 head test/manifest-virtual-block-validation"
+    },
+    {
+      "name": "master",
+      "sha": "66120be334a3fd38c10a259f3528cffbfed8ddc5",
+      "protected": true,
+      "open_prs": [],
+      "disposition": "keep_live",
+      "reason": "Protected integration branch; do not alter directly."
+    },
+    {
+      "name": "test/manifest-virtual-block-validation",
+      "sha": "95a8026bafb09374c7ab6efa91d8dfdd45a9cec6",
+      "protected": false,
+      "open_prs": [
+        18
+      ],
+      "disposition": "keep_live",
+      "reason": "Active PR #18 head; do not retire until merged/closed and its work disposition is explicit."
+    },
+    {
+      "name": "test/raw-asset-boundaries",
+      "sha": "2e008f107ad5d59a0478fa7d0c199b58c3a71b00",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "merged PR #19; changed-file blobs were verified equal to master"
+    },
+    {
+      "name": "work/catalog-redirect-hardening",
+      "sha": "7f166042572e9636e7b135201a1e96a2ea9eb866",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "only changed track_catalog.cpp blob matches master"
+    },
+    {
+      "name": "work/discrete-track-asset-tools",
+      "sha": "e2c5f761248ea1c8e32cb9b1e23a2f9808b210c7",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/discrete-track-asset-tools-clean",
+      "sha": "892d66e900e5ec53b07bd24bbb5381ec50ca1e1a",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/loose-model-replacement-hardening",
+      "sha": "7dbdd547b5b17c1498a7e2df55e3b446ad65e84d",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/track-catalog-hardening",
+      "sha": "798a4ea0d8efa6c5d8a8ae18a38f50f03be48517",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/track-catalog-hardening-stack",
+      "sha": "546c59596ba4737f848f9a61669ffa8c367d2f73",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/track-manifest-registry",
+      "sha": "0cc975739dbe0ac833bc8945afc521a8653907ca",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/virtual-block-provider",
+      "sha": "892d66e900e5ec53b07bd24bbb5381ec50ca1e1a",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "archive_then_retire_ref",
+      "reason": "exact SHA duplicate of retained work/discrete-track-asset-tools-clean"
+    },
+    {
+      "name": "work/virtual-block-provider-clean",
+      "sha": "ec6efe8466b4e4049091aa45a63592eb5f7f624d",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    },
+    {
+      "name": "work/virtual-block-provider-main",
+      "sha": "2abb1fd041232db24d4bdaa3e96ab6f2ebbc6cda",
+      "protected": false,
+      "open_prs": [],
+      "disposition": "keep_live_pending_review",
+      "reason": "Has differences requiring review; preserve live ref until a focused decision is recorded."
+    }
+  ],
+  "next_steps": [
+    "First finish and review PR #18's exact-head tests; this archive branch does not assert its code has been integrated.",
+    "Add a reviewed cleanup workflow with a fixed nine-ref allowlist and exact expected SHAs. It must keep master and this archive branch, preserve open PR heads and protected branches, preflight the full batch, and require each candidate tip to be an ancestor of this archive branch.",
+    "Only retire a ref if its exact head is unchanged, unprotected, unused by an open PR, and reachable from this archive or master immediately before deletion.",
+    "Retiring all nine documented candidates would reduce the original live count from 24 to 15, or to 16 after accounting for this archive branch, before accounting for any extra temporary workflow branch. The final live count must be verified directly."
+  ]
+}
