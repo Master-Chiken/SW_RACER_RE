@@ -1,0 +1,161 @@
+name: Retire verified redundant branch refs
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - ".github/workflows/retire-verified-duplicate-refs.yml"
+  # No workflow_dispatch: retirements only run after this reviewed workflow lands on protected master.
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: retire-verified-duplicate-refs
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    name: Retire only archived, exact-SHA candidates
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Preflight all candidates, then retire exact refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GH_REPO" == "Master-Chiken/SW_RACER_RE" ]] || { echo "::error::Unexpected repository"; exit 1; }
+          default_branch="$(gh api "repos/$GH_REPO" --jq '.default_branch')"
+          [[ "$default_branch" == "master" ]] || { echo "::error::Expected protected master"; exit 1; }
+
+          archive_branch="archive/branch-heads-20261019"
+          workdir="$RUNNER_TEMP/branch-retirement"
+          git clone --quiet --no-tags --no-checkout "https://github.com/$GH_REPO.git" "$workdir"
+          git -C "$workdir" fetch --quiet origin "refs/heads/master:refs/remotes/origin/master"
+          git -C "$workdir" fetch --quiet origin "refs/heads/$archive_branch:refs/remotes/origin/$archive_branch"
+          master_ref="refs/remotes/origin/master"
+          archive_ref="refs/remotes/origin/$archive_branch"
+
+          inventory() {
+            gh api --paginate --slurp "repos/$GH_REPO/branches?per_page=100" | jq -c 'add' > "$RUNNER_TEMP/branches.json"
+            gh api --paginate --slurp "repos/$GH_REPO/pulls?state=open&per_page=100" | jq -c 'add' > "$RUNNER_TEMP/open-prs.json"
+          }
+          branch_count() { jq 'length' "$RUNNER_TEMP/branches.json"; }
+          has_open_pr() {
+            local name="$1"
+            jq -e --arg name "$name" --arg repo "$GH_REPO" \
+              'any(.[]; .head.ref == $name and .head.repo.full_name == $repo)' \
+              "$RUNNER_TEMP/open-prs.json" >/dev/null
+          }
+
+          names=(
+            "work/virtual-block-provider"
+            "fix/require-spline-or-stock-slot"
+            "test/raw-asset-boundaries"
+            "fix/dinput-hook-log-filename"
+            "work/catalog-redirect-hardening"
+            "fix/game-cursor-scaling"
+            "docs/community-reuse-audit-2026-10-16"
+            "contribute/cursor-scaling-upstream"
+            "contribute/hook-log-doc-upstream"
+          )
+          shas=(
+            "892d66e900e5ec53b07bd24bbb5381ec50ca1e1a"
+            "95a8026bafb09374c7ab6efa91d8dfdd45a9cec6"
+            "2e008f107ad5d59a0478fa7d0c199b58c3a71b00"
+            "2c6bcd1b9b01cb45d04deb169ed95ea262f03ed3"
+            "7f166042572e9636e7b135201a1e96a2ea9eb866"
+            "39a1c34deaa52a18e734f7b40674f78a8a0cc5cf"
+            "8b2f9e0f6d382bf0ddaad88b57606e475707d8ad"
+            "748a013119826fbe918f5b86b5260024bf2ba228"
+            "97295daefe069bbc44288abf64d3e2d17fd084fa"
+          )
+
+          inventory
+          initial_count="$(branch_count)"
+          [[ "$initial_count" -ge 20 ]] || { echo "Already below 20 branches ($initial_count); nothing to do."; exit 0; }
+          [[ "${#names[@]}" -eq "${#shas[@]}" ]] || { echo "::error::Candidate list mismatch"; exit 1; }
+          echo "# Verified duplicate-ref cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "- Initial live refs: $initial_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preserved refs: `master`, `$archive_branch`, and all open PR heads." >> "$GITHUB_STEP_SUMMARY"
+          echo "- This retires branch names only; it does not merge candidate code into master." >> "$GITHUB_STEP_SUMMARY"
+
+          : > "$RUNNER_TEMP/eligible.tsv"
+          # Full preflight: if a present ref differs from its recorded SHA or loses
+          # an eligibility condition, stop before deleting any candidate.
+          for i in "${!names[@]}"; do
+            name="${names[$i]}"
+            expected="${shas[$i]}"
+            actual="$(jq -r --arg name "$name" '[.[] | select(.name == $name)][0].commit.sha // empty' "$RUNNER_TEMP/branches.json")"
+            if [[ -z "$actual" ]]; then
+              echo "ALREADY ABSENT: $name"
+              continue
+            fi
+            protected="$(jq -r --arg name "$name" '[.[] | select(.name == $name)][0].protected | tostring' "$RUNNER_TEMP/branches.json")"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::$name SHA changed (expected $expected, found $actual); no candidates deleted."
+              exit 1
+            fi
+            if [[ "$protected" != "false" ]]; then
+              echo "::error::$name is protected or protection state is unknown; no candidates deleted."
+              exit 1
+            fi
+            if has_open_pr "$name"; then
+              echo "::error::An open PR uses $name; no candidates deleted."
+              exit 1
+            fi
+            if ! git -C "$workdir" merge-base --is-ancestor "$expected" "$archive_ref" &&
+               ! git -C "$workdir" merge-base --is-ancestor "$expected" "$master_ref"; then
+              echo "::error::$name exact tip is not reachable from archive or master; no candidates deleted."
+              exit 1
+            fi
+            printf '%s\t%s\n' "$name" "$expected" >> "$RUNNER_TEMP/eligible.tsv"
+            echo "PREFLIGHT OK: $name @ $expected; archived; unprotected; no open PR."
+          done
+
+          deleted=0
+          while IFS=$'\t' read -r name expected; do
+            [[ -n "$name" ]] || continue
+            inventory
+            actual="$(jq -r --arg name "$name" '[.[] | select(.name == $name)][0].commit.sha // empty' "$RUNNER_TEMP/branches.json")"
+            if [[ -z "$actual" ]]; then
+              continue
+            fi
+            protected="$(jq -r --arg name "$name" '[.[] | select(.name == $name)][0].protected | tostring' "$RUNNER_TEMP/branches.json")"
+            if [[ "$actual" != "$expected" || "$protected" != "false" ]] || has_open_pr "$name"; then
+              echo "::error::Final ref/protection/PR check changed for $name; stopping."
+              exit 1
+            fi
+            git -C "$workdir" fetch --quiet origin "refs/heads/master:refs/remotes/origin/master"
+            git -C "$workdir" fetch --quiet origin "refs/heads/$archive_branch:refs/remotes/origin/$archive_branch"
+            if ! git -C "$workdir" merge-base --is-ancestor "$expected" "$archive_ref" &&
+               ! git -C "$workdir" merge-base --is-ancestor "$expected" "$master_ref"; then
+              echo "::error::$name is no longer recoverable; stopping."
+              exit 1
+            fi
+            gh api --method DELETE "repos/$GH_REPO/git/refs/heads/$name" >/dev/null
+            inventory
+            if jq -e --arg name "$name" 'any(.[]; .name == $name)' "$RUNNER_TEMP/branches.json" >/dev/null; then
+              echo "::error::GitHub still lists $name after deletion."
+              exit 1
+            fi
+            echo "RETIRED AND VERIFIED: $name @ $expected"
+            echo "- Retired `$name` — exact SHA preserved by archive; unprotected; no open PR." >> "$GITHUB_STEP_SUMMARY"
+            deleted=$((deleted + 1))
+          done < "$RUNNER_TEMP/eligible.tsv"
+
+          inventory
+          final_count="$(branch_count)"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "- Refs retired: $deleted" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Final live refs: $final_count" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$final_count" -ge 20 ]]; then
+            echo "::error::Cleanup did not bring the repository below 20 live branch refs."
+            exit 1
+          fi
+          echo "SUCCESS: $final_count live refs remain (<20); every retired SHA remains reachable from the archive or master."
