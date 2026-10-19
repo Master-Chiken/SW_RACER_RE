@@ -6,7 +6,7 @@
   "baseline_master_sha": "66120be334a3fd38c10a259f3528cffbfed8ddc5",
   "archive_branch": "archive/branch-heads-20261019",
   "retention_semantics": "The archive commit is a multi-parent preservation anchor: its parent list includes the exact head commit of every live branch at capture time. Retiring a ref name is not integration into master. Each captured tip remains reachable from this archive commit unless a later rewrite removes the archive ref (which must never be part of routine cleanup).",
-  "target_live_ref_count": 16,
+  "target_live_ref_count": 17,
   "keepers": [
     "master",
     "archive/branch-heads-20261019",
@@ -270,5 +270,7 @@
     "Add a reviewed cleanup workflow with a fixed nine-ref allowlist and exact expected SHAs. It must keep master and this archive branch, preserve open PR heads and protected branches, preflight the full batch, and require each candidate tip to be an ancestor of this archive branch.",
     "Only retire a ref if its exact head is unchanged, unprotected, unused by an open PR, and reachable from this archive or master immediately before deletion.",
     "Retiring all nine documented candidates would reduce the original live count from 24 to 15, or to 16 after accounting for this archive branch, before accounting for any extra temporary workflow branch. The final live count must be verified directly."
-  ]
+  ],
+  "current_live_ref_count_before_followup": 26,
+  "followup_cleanup_policy": "undefined Expected final count assumes the cleanup PR branch remains as an additional ref (automatic branch deletion is currently disabled); the acceptance condition is strictly fewer than 20 live refs. The archive itself was created before that temporary cleanup branch and preserves all 24 original branch heads."
 }
